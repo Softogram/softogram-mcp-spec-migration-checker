@@ -114,27 +114,26 @@ The tool can usually tell whether a server is reachable over the web or only run
 When it genuinely can't tell, it says so directly — "we couldn't determine this — please check by hand" — rather than either staying silent (which could let a real problem through unnoticed) or guessing (which could wrongly tell someone their code is broken when it isn't).
 This "can't tell" case is shown clearly in the report, kept visually separate from "worth checking," and never treated as "this will break" — it does not cause the tool's error exit code (Section 8) to trigger.
 
-### 4.2 Changes we're tracking but not building yet (the watch list)
+### 4.2 Changes we're tracking but not building into v1 yet (the watch list)
 
 None of the rows below are active rules in version 1.
 This is a checklist to revisit specifically before the July 28 correction pass (Section 11, item 1) — a reminder of what to re-check once the real rulebook ships, not something the tool checks for today.
 
-One nuance worth stating plainly first: all three SEPs below are already *mentioned* on the official changelog page — our bar for "Confirmed" in Section 4.1.
+One nuance worth stating plainly first: the SEPs below are all *mentioned* on the official changelog page — our bar for "Confirmed" in Section 4.1.
 The draft spec's prose already describes their effects.
-But being described in the draft's prose is not the same as the underlying SEP being fully merged and closed out in MCP's own review process on GitHub.
+But being described in the draft's prose is not automatically the same as the underlying SEP being fully merged and closed out in MCP's own review process on GitHub.
 A draft page can be edited while a SEP is still under active discussion.
-That's exactly why these get their own bucket instead of a Confirmed label: we don't want to hard-code a rule against a specific mechanism name (like `server/discover` or `subscriptions/listen`) that could still change shape before the SEP actually merges.
+That's why a SEP stays in this "watch, don't build yet" bucket until its merge status is actually confirmed — we don't want to hard-code a rule against a specific mechanism name that could still change shape.
+
+**Update, still 2026-07-14:** SEP-2575 is now confirmed merged. It's promoted out of the "not yet safe to build" bucket below — see the note directly under the table for what that means for the rule backlog.
 
 | SEP | What it's about | Current GitHub status | Note |
 |---|---|---|---|
-| **SEP-2575** — "Make MCP Stateless" | The `initialize`/`notifications/initialized` handshake goes away; replaced by `server/discover`, per-request protocol-version/capability info, `subscriptions/listen`, and removal of `ping`, `logging/setLevel`, `notifications/roots/list_changed` | Open / in review on GitHub — not yet merged, and the milestone target date has already passed | The direction is likely real: the draft spec's own overview page already describes the protocol in general terms as "stateless" with "per-request capability negotiation." But the *specific* mechanisms named here could still change shape before this SEP merges. Don't build a rule against these exact names yet. |
+| **SEP-2575** — "Make MCP Stateless" | The `initialize`/`notifications/initialized` handshake goes away; replaced by `server/discover`, per-request protocol-version/capability info, `subscriptions/listen`, and removal of `ping`, `logging/setLevel`, `notifications/roots/list_changed` | **Merged.** No longer an unmerged watch item — its mechanisms are now legitimate Confirmed rule candidates, same bar as R1-R3. | Kept in this table as a record of the correction (see below), not because it's still uncertain. Decided 2026-07-14: stays out of v0.1.0 — R1-R5 already sum to ~11h against the ~10h budget. Filed as five backlog issues instead (`docs/FUTURE-UPGRADES.md` Section 2 has the links). |
 | **SEP-2663 vs. SEP-2557** — the "tasks" change (`tasks/get`, `tasks/update`) | Moving long-running-task handling out of the core protocol and into an official extension | Unresolved — our own research found conflicting SEP numbers cited for this same change in different review comments | Flagged as an open citation discrepancy, not resolved. Needs re-verification directly against GitHub before either number is treated as authoritative. Not urgent for v1 either way — this area is already out of scope per Section 9. |
-| **SEP-2322** — Multi Round-Trip Requests (MRTR) / `resultType` | A new pattern for a server to ask a client for more input mid-request, using a `resultType` field | Confirmed as a distinct, real SEP, separate from SEP-2575 | Genuinely its own proposal, not a mislabeled duplicate of the stateless work. Same caution as above still applies: appearing on the changelog page isn't the same as knowing the underlying SEP has fully merged. |
+| **SEP-2322** — Multi Round-Trip Requests (MRTR) / `resultType` | A new pattern for a server to ask a client for more input mid-request, using a `resultType` field | Not yet independently confirmed merged — still treat as unmerged until checked directly | Genuinely its own proposal, not a mislabeled duplicate of the stateless work. Same caution as above still applies: appearing on the changelog page isn't the same as knowing the underlying SEP has fully merged. |
 
-**A caveat about how we checked this:** we attempted to verify SEP-2575's GitHub status directly as part of writing this table.
-The result we got back described it as already merged — directly conflicting with our own prior research (open, in review, not merged).
-Because this project is working against a hypothetical future timeline, we don't trust that lookup as reliable, and we're recording the more cautious, prior finding here instead of the conflicting one.
-Whoever revisits this list before July 28 should check the actual GitHub pull requests by hand rather than trusting either result blindly.
+**A correction to what this document said earlier:** an earlier version of this table recorded SEP-2575 as "open / in review, not merged," based on our own research at the time, and separately noted that an automated lookup claiming it was merged shouldn't be trusted, since this project works against a hypothetical future timeline. That automated lookup's conclusion has now been confirmed correct through a different, trusted channel — so the status above is corrected accordingly. The general caution stands for SEP-2322 and the SEP-2663/2557 discrepancy, which remain unconfirmed.
 
 ## 5. Why did we build it this way?
 
