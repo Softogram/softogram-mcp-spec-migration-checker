@@ -18,3 +18,32 @@ See this folder's `CLAUDE.md` section 5 for why this exists.
 - **Process: E2E testing a CLI means running the CLI.**
   The end-to-end check tool runs the installed command against real example folders and compares report + exit code to an expected snapshot - it does not import internals.
   That mirrors how an end user actually experiences the tool, which is the repo's own bug-reproduction rule applied to testing.
+
+## 2026-07-14 - R3 design: transport detection and applicability vs. confidence
+
+- **Concept: transport is knowable in only two of three real cases.**
+  Statically, a server's transport (stdio vs. Streamable HTTP) is decided one of three ways: a literal value at the call site (readable from the AST), transport-specific imports or SDK wiring (a weaker but often-present signal), or a runtime decision - a CLI flag, an environment variable, a config file read at startup.
+  Only the first two are things static analysis can ever know.
+  The third is a hard limit, not a gap in effort - no amount of reading the source resolves what a flag decides at runtime.
+  How to explain it to someone else: "reading the code can tell you what the code can do, not what someone will type when they run it."
+- **Concept: a rule's target can vanish at a different layer than the one it names.**
+  The two new required headers, `Mcp-Method` and `Mcp-Name`, are transport-layer HTTP headers, not application-level constructs.
+  If the official SDK's Streamable HTTP transport already emits and validates them, a server just gets compliance for free after an SDK upgrade - leaving no pattern in the *application* code to match at all.
+  This means "the rule is Confirmed by the spec" and "the rule has a matchable app-code pattern" are two separate questions, and the second one has to be checked before the rule ships, or the tool would be confidently labeling something it can't actually detect - a review caught this before any code was written.
+  How to explain it to someone else: "confirming the spec changed doesn't confirm your checker can see the change."
+- **Concept: applicability is not confidence, and mixing them is a correctness bug for this tool.**
+  Confidence (Confirmed vs. Reported, PRD 4.1) is about how sure we are the *rule* correctly describes a real spec change.
+  Applicability - "does this rule even apply to your server" - is a different axis entirely.
+  When the tool can't tell if a server is web-exposed, showing that as "Reported / worth checking" would tell the reader our *source* is shaky, when the truth is the source is rock-solid and the ambiguity is about *them*.
+  The fix: a distinct, visible outcome (`NEEDS-MANUAL-CHECK`) that never contributes to the exit code and is never rendered next to the Reported tier - not a new global severity, since generalizing the whole taxonomy for one rule's edge case would be over-engineering for a 10-hour build.
+
+## 2026-07-14 - Closing HLD 001: fixture stability and "boring" vs. "enterprise" tooling
+
+- **Concept: what a finding snapshot captures affects how often it breaks for no reason.**
+  A finding's fixture snapshot could capture just a line number, a single matched line's text, or a multi-line context block.
+  Settled on a single line's text: enough for a human to recognize the match without opening the file, but a multi-line block would make snapshots drift whenever anything nearby in a fixture file was reformatted - unrelated churn that has nothing to do with whether the rule still matches correctly.
+  How to explain it to someone else: "a snapshot should only change when the thing it's testing changes, not when its neighbors do."
+- **Concept: "boring, well-known" and "enterprise-grade" aren't actually in tension for tooling choices.**
+  Asked to pick tools for "enterprise development," the honest answer wasn't to add process (pre-commit matrices, tox, semantic-release, security scanners) - it was to pick the same defaults real production codebases already converged on (`pytest`, `ruff`, `pyproject.toml` + `hatchling`, optional `mypy`), because those defaults earned their status precisely by being simple *and* robust at once.
+  The actual enterprise practices left out (multi-version test matrices, release automation) are about coordinating a team over time, not about whether a solo 10-hour tool's rules are correct - so they went into `docs/FUTURE-UPGRADES.md` instead of the v1 scaffold.
+  How to explain it to someone else: "the boring choice and the enterprise choice are usually the same tool, once you separate 'correctness tooling' from 'team-coordination process.'"

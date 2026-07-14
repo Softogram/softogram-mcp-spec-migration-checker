@@ -1,6 +1,6 @@
 # HLD 001 - The Scan Pipeline
 
-**Status:** Draft - written by Claude at the user's request; open questions at the bottom are for the user to challenge before this is treated as settled.
+**Status:** Settled - all four open questions below have a recorded decision.
 **Links:** `docs/PRD.md` sections 4, 4.1, 8. Scope contract in `NOTES.md`.
 **Last updated:** 2026-07-14
 
@@ -42,16 +42,18 @@ Stage responsibilities:
 3. **Parser.**
    Reads each file into an AST using Python's built-in `ast` module.
    A file that fails to parse is recorded as a warning in the report and skipped - one broken file must never abort the whole scan.
+   Parse-failure warnings do not affect the exit code: a file the tool can't read isn't a "will break" finding, it's a gap in what the tool could check, and shouldn't fail a build any differently than a clean scan would.
 4. **Rule engine.**
    Loads the rule set (see "Rules are data" below) and runs each rule's matcher over each file's AST.
    The engine knows nothing about any individual rule; adding or removing a rule must not require touching the engine.
 5. **Findings collector.**
-   Each match becomes a finding: rule ID, file, line number, and a short snippet of context.
+   Each match becomes a finding: rule ID, file, line number, and the matched source line's own text (stripped of leading/trailing whitespace) - one line, not a multi-line block. A single line is enough for a reader to recognize the match without opening the file, and it keeps fixture snapshots stable: a one-line string only changes when the matched line itself changes, where a surrounding multi-line block would also drift on unrelated formatting elsewhere in the fixture.
    Findings also carry everything the reporter needs (severity, confidence, explanation, source link) pulled from the rule's metadata - the reporter never looks rules up itself.
 6. **Reporter + exit code.**
    Prints the report grouped by file, in plain language, one finding per entry with its confidence label and source link.
-   Ends with a one-line summary (how many "will break", how many "worth checking", how many files skipped).
-   Exit code: 0 when no "will break" findings, 1 when at least one exists, 2 for usage errors.
+   A finding can also come back in a fourth state, `NEEDS-MANUAL-CHECK` - "we can't tell whether this rule applies to you, verify by hand." This is not a confidence label (it says nothing about whether the rule itself is real) and not a severity (it says nothing about whether something is broken) - it is a distinct, visible outcome, shown with its own label, never rendered next to "worth checking" so a reader can't mistake it for the Reported tier.
+   Ends with a one-line summary: how many "will break", how many "worth checking", how many `NEEDS-MANUAL-CHECK`, how many files skipped - each counted separately.
+   Exit code: 0 when no "will break" findings, 1 when at least one exists, 2 for usage errors. `NEEDS-MANUAL-CHECK` findings never contribute to the exit code - the tool isn't asserting breakage, so it must not fail a build over an unresolved applicability question.
    This is what makes the tool usable in automated checks later without building that integration now.
 
 ## Rules are data, matchers are small code
@@ -72,12 +74,32 @@ It also makes the confidence-tier honesty auditable: every claim the tool prints
 |---|---|---|---|
 | R1 | Old-style session usage (reading/storing a session ID) | This will break | Confirmed |
 | R2 | Server memory keyed to a session instead of an explicit visible handle | This will break | Confirmed |
-| R3 | Web-exposed server code missing the two new required request fields; skipped when the server is local-only (stdio) | This will break | Confirmed |
+| R3 | Web-exposed server code missing the two new required headers, `Mcp-Method` and `Mcp-Name`; skipped when the server is local-only (stdio) | This will break | Confirmed |
 | R4 | Use of Roots / Sampling / Logging (being phased out) | Worth checking | Reported |
 | R5 | Hand-written MCP error numbers | Worth checking | Reported |
 
 Exactly which AST patterns each rule matches (and deliberately ignores) is low-level design, worked out per-rule in the LLD issues - the user proposes those, per `CLAUDE.md` section 2.
-R3 needs one extra decision at LLD time: how the tool decides a server is web-exposed vs local-only (likely from which transport the code sets up), and what to do when it can't tell.
+
+### R3: transport detection and the "can't tell" case
+
+R3 is the one conditional rule, and it resolves to one of three outcomes, not two:
+
+1. **Confidently web-exposed, headers not handled** -> "This will break" (Confirmed).
+2. **Confidently local-only (stdio)** -> suppressed silently. This rule genuinely does not apply, so silence here is correct, not a miss.
+3. **Can't tell** -> `NEEDS-MANUAL-CHECK`. Neither silence nor a forced BREAKING/OK verdict is honest here (see the reporter contract above and PRD section 4.1).
+
+The governing principle: **R3 only fires "This will break" when the tool is confident the server is web-exposed.** Confidence, not mere plausibility, is the bar - a weak signal alone must never promote a finding to BREAKING.
+
+Detection checks signals in this order, strongest first:
+
+1. **A literal transport value at the server's run call site** (e.g. an explicit transport argument naming stdio or Streamable HTTP). Directly readable from the AST - the strongest signal.
+2. **Absence of an explicit transport value**, in SDK usage where the default transport is stdio. Treated as a stdio signal, not as "can't tell" - a missing argument that defaults to stdio is still information.
+3. **Lower-level SDK wiring** - which transport-specific server construct the code sets up (stdio-style vs. Streamable-HTTP-style). A medium-strength signal: present more often than a literal argument, less certain than one.
+4. **Bare imports** of a web framework or transport module (e.g. a web server library alongside the MCP SDK) used alone. The weakest signal - a codebase can import such a thing for unrelated reasons - and must never, by itself, promote R3 to "This will break." It may only support an already-medium-strength signal from #3, or otherwise leaves the tool in the "can't tell" case.
+
+None of these signals fires when the transport is decided purely at runtime (a CLI flag, an environment variable, a config file read at startup) - that case is exactly what "can't tell" exists for, since no amount of static reading resolves it.
+
+**Open prerequisite, tracked separately (not yet resolved by this doc):** `Mcp-Method`/`Mcp-Name` are transport-layer HTTP headers. If the official MCP Python SDK's Streamable HTTP transport emits and validates them internally, a server built on an up-to-date SDK may comply automatically with no pattern in the *application* code to match on. Whether R3 has a real app-code target at all - or must be narrowed to hand-rolled/custom transport wiring only - is a dedicated LLD investigation (see GitHub issue tracking; this must be answered before R3 ships as Confirmed/"This will break").
 
 ## Testing strategy
 
@@ -109,9 +131,21 @@ Three layers, smallest first:
 - **Scanning non-Python or non-official-SDK code.**
   Rejected per the PRD: one language, one SDK, done well.
 
-## Open questions for the user (settle in LLD issues, not here)
+## Decisions on the four open questions (all settled)
 
-1. R3's web-vs-local detection: which signal do we trust, and what does the report say when the tool can't tell?
-2. What exact context does a finding carry - just the line, or the source line's text too? (Affects fixture snapshots.)
-3. Should parse-failure warnings affect the exit code? (Current proposal: no - they're reported but don't fail the run.)
-4. Package layout and tooling choices (test runner, linter) - implementer's call, inside the "boring, well-known" rule from the root `CLAUDE.md`.
+1. ~~R3's web-vs-local detection: which signal do we trust, and what does the report say when the tool can't tell?~~ Settled: signal order, the confident-web-only firing rule, and the `NEEDS-MANUAL-CHECK` outcome - see the "R3: transport detection and the 'can't tell' case" section above. The one piece still open is a dedicated LLD investigation into whether R3 has a matchable app-code pattern at all, given `Mcp-Method`/`Mcp-Name` are transport-layer headers - tracked as GitHub issue #20, not as an open question in this doc.
+2. ~~What exact context does a finding carry?~~ Settled: rule ID, file, line number, and the matched source line's own text (single line, not a multi-line block) - see the "Findings collector" stage above, including why a single line keeps fixture snapshots stable.
+3. ~~Should parse-failure warnings affect the exit code?~~ Settled: no. They're reported in the output but never change the exit code - see the "Parser" stage above.
+4. ~~Package layout and tooling choices.~~ Settled below.
+
+### Tooling choices (question 4)
+
+Recommendation: pick the tools that are already the boring, unglamorous default in real production Python codebases, rather than either inventing something bespoke or reaching for heavier process apparatus that's about team scale, not code quality. Concretely:
+
+- **Package layout:** a `src/`-layout package (`src/mcp_migration_check/...`). This is the standard layout recommended by the Python Packaging Authority specifically because it stops a developer's working directory from accidentally shadowing the installed package during testing - a real, if easy to miss, class of bug.
+- **Packaging metadata:** a single `pyproject.toml` (PEP 621), no separate `setup.py`/`setup.cfg`. Build backend: **hatchling** - PyPA's current recommended default for a package this shape, with less boilerplate than setuptools for a simple single-command CLI.
+- **CLI entry point:** `[project.scripts]` in `pyproject.toml`, mapping the `mcp-migration-check` command (PRD section 8) directly to the package's entry function. No hand-rolled `sys.argv` wiring needed for this part.
+- **Test runner: `pytest`.** The unambiguous standard; its fixture and parametrization support map directly onto this project's own per-rule fixture convention (see "Testing strategy" below) without extra glue code.
+- **Linter + formatter: `ruff`.** One fast tool, one config block, replacing what used to take three separate tools (flake8 + isort + black). It's become the default lint/format choice across both open-source and production Python codebases, which is exactly the "boring, well-known" bar this project holds itself to - not because it's new, but because it's already what a stranger reading this code in six months would expect to see.
+- **Type checking: `mypy`, default (non-strict) mode.** Recommended, not required. The rule engine's matchers do a lot of `isinstance` checks against specific `ast` node types (`ast.Call`, `ast.Attribute`, and so on) - exactly the kind of code where a wrong assumption about a node's shape fails silently at runtime instead of loudly. A light type-checking pass catches a real slice of that class of bug for very little setup cost. If hours run short, this rides on the same cut-order as CI (issue #15) rather than needing its own issue.
+- **Deliberately not added:** a pre-commit-hook framework, a multi-Python-version test matrix (tox/nox), automated semantic-release/versioning, or a security scanner (e.g. bandit). These are real enterprise practices, but they're about coordinating a team over time, not about whether this tool's five rules work correctly - and they cost setup time disproportionate to a solo 10-hour build. They're recorded instead in `docs/FUTURE-UPGRADES.md` (the "guardrail while a team keeps writing new code" idea already in PRD section 7), for if this project ever grows past one contributor.

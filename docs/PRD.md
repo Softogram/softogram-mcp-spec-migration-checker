@@ -5,7 +5,7 @@
 **Status:** Draft — scoping complete, build not yet started
 **Owner:** Softogram (solo)
 **Build budget:** ~10 hours, this week only (see `CLAUDE.md`)
-**Last updated:** 2026-07-13
+**Last updated:** 2026-07-14
 
 This document explains what we're building, why, and how — written so someone new to AI or software engineering can follow along and contribute. Technical words are explained the first time they show up. There's also a glossary below you can jump back to.
 
@@ -28,6 +28,7 @@ This document explains what we're building, why, and how — written so someone 
 - **Static analysis:** checking code by reading it, without actually running the program. Opposite of testing a program while it's live.
 - **CLI (Command Line Interface):** a tool you use by typing a command into a terminal, instead of clicking buttons in an app.
 - **SDK (Software Development Kit):** a ready-made code library that helps developers build something (here, an MCP server) without writing everything from scratch.
+- **SEP (Spec Enhancement Proposal):** MCP's own process for proposing and discussing a rulebook change before it's accepted — similar to how many open-source projects use an "RFC" (Request for Comments) to debate a change first. Each SEP has a number and a GitHub pull request where the discussion happens. A SEP being **merged** means the proposal was actually accepted into the spec; "open" or "in review" means it's still being debated and could still change shape before it's final.
 
 ---
 
@@ -39,7 +40,11 @@ This update changes some fundamental things, and code written for the old rulebo
 
 - **Sessions go away.** Servers used to "remember" a client using a session ID. That's removed. Every message now has to carry everything it needs on its own.
 - **Server memory has to become a visible handle.** If a server needs to remember something (like "which shopping basket is this?"), it now has to hand back a plain, visible ID (a handle) that gets passed along in later messages — instead of hiding that memory inside a session.
-- **Two new pieces of information are required on every web-based request:** which method is being called, and which specific operation within it. This helps tools like load balancers (traffic-routing software) make smarter decisions.
+- **Two new HTTP headers are required on every web-based request.**
+  A header is a small labeled piece of information a computer sends alongside a request, before the main content of the message.
+  The two new required headers are `Mcp-Method` (which method is being called) and `Mcp-Name` (which specific operation within it).
+  This helps tools like load balancers (traffic-routing software) make smarter decisions.
+  The official changelog scopes this specifically to **Streamable HTTP POST requests** — the transport used by web-reachable servers. It does not apply to servers that only run locally over stdio (explained in Section 4).
 - **A new "extensions" option was added**, so servers can offer optional features beyond the core rulebook.
 
 Other sources close to MCP's governing body (the Agentic AI Foundation, part of the Linux Foundation) and independent trackers also describe more changes as part of the same update: three older features (Roots, Sampling, Logging — explained: ways for servers to declare folders, ask the AI to run a quick calculation, and send log messages) are being marked as "on their way out" (with a year's grace period before anything actually stops working), a new way to handle long-running tasks, a new way for servers to show interactive visual interfaces, and stricter login/security rules. These aren't yet shown on the single official "what changed" page we checked, so we treat them as less certain (more on that in Section 4.1).
@@ -64,6 +69,7 @@ Being clear about what we're skipping is just as important as what we're buildin
 - It only understands Python code using the official MCP Python SDK. Not TypeScript, not other MCP toolkits — yet.
 - It's not a website or hosted service. It's a command-line tool you run yourself. No accounts, no sign-up, nothing sent anywhere by default.
 - It can't promise it's 100% correct against the final rulebook, since the official update isn't published yet at the time we're building this (see Section 12, Risks).
+- It only checks **one hop** of the rulebook's version history: from the current stable version (**2025-11-25**) to the draft version (**2026-07-28**). It assumes the server being scanned is already built against 2025-11-25. It does not detect which spec version a server is actually on, and it does not add up the changes across multiple version hops. A server still on an older version (for example, 2025-06-18) would need to upgrade to 2025-11-25 first — using MCP's own version history — before this tool's findings reliably apply to it. This is a deliberate scope cut, not a bug (see Section 12 and `docs/FUTURE-UPGRADES.md`).
 
 ## 4. How will it work? (Solution Overview)
 
@@ -79,7 +85,7 @@ Here's what happens, step by step:
 2. **It looks for specific patterns**, such as:
    - Code that reads or stores a session ID, or keeps a "memory" tied to a session instead of passing an explicit handle.
    - Server code that stores information in a way that assumes the old "remembered session" model, instead of the new "explicit handle" model.
-   - Web-server code that doesn't yet expect the two new required pieces of information mentioned in Section 1 (this check only applies to servers reachable over the web — not to servers that only run locally).
+   - Web-server code that doesn't yet expect the two new required headers, `Mcp-Method` and `Mcp-Name`, mentioned in Section 1 (this check only applies to servers reachable over the web using the Streamable HTTP transport — not to servers that only run locally over stdio). When the tool genuinely cannot tell which kind of server it's looking at, it says so plainly instead of guessing (see Section 4.1).
    - Use of the three features that are reportedly being phased out (Roots, Sampling, Logging).
    - Code that checks for specific error numbers from MCP by hand (which might change).
 3. **Each pattern found gets a label**, explained next in Section 4.1: definitely breaking, worth a second look, or looks fine already.
@@ -97,6 +103,38 @@ Because the official rulebook isn't fully finalized yet, we're careful not to ov
 | **Known unknown** | Mentioned as changing, but the exact detail isn't confirmed anywhere yet (example: "an error number changes" without saying which one) | Not checked for in version 1 — mentioned in the README instead | Independent trackers |
 
 We'd rather tell a developer "we're not 100% sure, please double-check" than confidently say something is broken when we only read about it secondhand. Keeping this list of rules separate from the rest of the program (in its own file) also means that once the official rulebook is fully published on July 28, we can update just that list — not rewrite the whole tool.
+
+**A separate, fourth thing a finding can say: "we couldn't tell if this applies to you."**
+This is different from the confidence labels above.
+Confidence (Confirmed vs. Reported) is about how sure we are that a *rule itself* is real and correctly describes the spec change.
+This new case is about something else: whether a *specific rule* even applies to *your* server at all.
+
+The only rule where this comes up in version 1 is the web-vs-local check (Section 4, item 3).
+The tool can usually tell whether a server is reachable over the web or only runs locally — but not always.
+When it genuinely can't tell, it says so directly — "we couldn't determine this — please check by hand" — rather than either staying silent (which could let a real problem through unnoticed) or guessing (which could wrongly tell someone their code is broken when it isn't).
+This "can't tell" case is shown clearly in the report, kept visually separate from "worth checking," and never treated as "this will break" — it does not cause the tool's error exit code (Section 8) to trigger.
+
+### 4.2 Changes we're tracking but not building yet (the watch list)
+
+None of the rows below are active rules in version 1.
+This is a checklist to revisit specifically before the July 28 correction pass (Section 11, item 1) — a reminder of what to re-check once the real rulebook ships, not something the tool checks for today.
+
+One nuance worth stating plainly first: all three SEPs below are already *mentioned* on the official changelog page — our bar for "Confirmed" in Section 4.1.
+The draft spec's prose already describes their effects.
+But being described in the draft's prose is not the same as the underlying SEP being fully merged and closed out in MCP's own review process on GitHub.
+A draft page can be edited while a SEP is still under active discussion.
+That's exactly why these get their own bucket instead of a Confirmed label: we don't want to hard-code a rule against a specific mechanism name (like `server/discover` or `subscriptions/listen`) that could still change shape before the SEP actually merges.
+
+| SEP | What it's about | Current GitHub status | Note |
+|---|---|---|---|
+| **SEP-2575** — "Make MCP Stateless" | The `initialize`/`notifications/initialized` handshake goes away; replaced by `server/discover`, per-request protocol-version/capability info, `subscriptions/listen`, and removal of `ping`, `logging/setLevel`, `notifications/roots/list_changed` | Open / in review on GitHub — not yet merged, and the milestone target date has already passed | The direction is likely real: the draft spec's own overview page already describes the protocol in general terms as "stateless" with "per-request capability negotiation." But the *specific* mechanisms named here could still change shape before this SEP merges. Don't build a rule against these exact names yet. |
+| **SEP-2663 vs. SEP-2557** — the "tasks" change (`tasks/get`, `tasks/update`) | Moving long-running-task handling out of the core protocol and into an official extension | Unresolved — our own research found conflicting SEP numbers cited for this same change in different review comments | Flagged as an open citation discrepancy, not resolved. Needs re-verification directly against GitHub before either number is treated as authoritative. Not urgent for v1 either way — this area is already out of scope per Section 9. |
+| **SEP-2322** — Multi Round-Trip Requests (MRTR) / `resultType` | A new pattern for a server to ask a client for more input mid-request, using a `resultType` field | Confirmed as a distinct, real SEP, separate from SEP-2575 | Genuinely its own proposal, not a mislabeled duplicate of the stateless work. Same caution as above still applies: appearing on the changelog page isn't the same as knowing the underlying SEP has fully merged. |
+
+**A caveat about how we checked this:** we attempted to verify SEP-2575's GitHub status directly as part of writing this table.
+The result we got back described it as already merged — directly conflicting with our own prior research (open, in review, not merged).
+Because this project is working against a hypothetical future timeline, we don't trust that lookup as reliable, and we're recording the more cautious, prior finding here instead of the conflicting one.
+Whoever revisits this list before July 28 should check the actual GitHub pull requests by hand rather than trusting either result blindly.
 
 ## 5. Why did we build it this way?
 
@@ -135,7 +173,7 @@ Must have:
 - [ ] A command you can run: `mcp-migration-check <path>` (checks the current folder if no path is given)
 - [ ] A check for old-style session usage → labeled "This will break" (Confirmed)
 - [ ] A check for server memory that isn't using the new visible-handle style → labeled "This will break" (Confirmed)
-- [ ] A check for web-server code missing the two new required pieces of request information → labeled "This will break" (Confirmed) — skipped for servers that only run locally, since this rule doesn't apply to them
+- [ ] A check for web-server code missing the two new required headers, `Mcp-Method` and `Mcp-Name` → labeled "This will break" (Confirmed) — skipped for servers that only run locally over stdio, since this rule doesn't apply to them; when the tool can't tell whether a server is web-reachable or local, it reports "we couldn't determine this — please check by hand" instead of guessing either way
 - [ ] A check for use of the three features being phased out (Roots, Sampling, Logging) → labeled "Worth checking" (Reported)
 - [ ] A check for hand-written MCP error numbers → labeled "Worth checking" (Reported)
 - [ ] A plain-language report, organized by file, each finding labeled with how sure we are and a link to the source
@@ -176,12 +214,15 @@ If this project gets more time later (following this repo's rule of only investi
 5. **Auto-fix mode**, but only once the preview mode above has been trusted for a while.
 6. **An optional, privacy-respecting way to learn from real-world results** (only if people explicitly agree to share what their scans found), to improve the rules over time.
 
+This is the short version. For the full, expanded list — including multi-version cumulative diffing (checking more than one spec-version hop at once) and new rule candidates already spotted in the current changelog — see `docs/FUTURE-UPGRADES.md`.
+
 ## 12. What could go wrong? (Risks & Assumptions)
 
 - **We're assuming the near-final draft won't change much before it becomes official.** Multiple sources agree it was "locked" on May 21, 2026 specifically so people have a stable target to build against. Still, the page we're building against could be edited before July 28 — which is why updating the rules afterward (Section 11, item 1) is the top priority either way.
 - **We noticed while researching that our sources don't fully agree.** The one official "what changed" page describes fewer changes than other trusted sources describe for the same update. That's exactly why we built the confidence-labeling system in Section 4.1, instead of treating every claim as equally certain.
 - **A tool like this loses trust fast if it cries wolf.** If we're not sure something is actually breaking, we label it "worth checking" instead of "will break" — better to under-claim than over-claim.
 - **Only supporting Python for now might limit how many people this helps**, if a lot of affected servers turn out to be written in other languages. That's a deliberate, temporary trade-off (see Section 11, item 3), not something we forgot.
+- **We assume the server being scanned is already on the 2025-11-25 spec version.** This tool only checks the single hop from 2025-11-25 to the 2026-07-28 draft (see Section 3). It doesn't detect which version a server is actually running, and it doesn't add up changes across multiple version hops. A server still on an older version would see findings that don't fully apply until it first upgrades to 2025-11-25 the normal way. This is a known, deliberate scope cut, not something we overlooked — see `docs/FUTURE-UPGRADES.md` for the multi-version approach we'd build later.
 
 ## 13. Where this information came from (References)
 
@@ -197,3 +238,4 @@ This project's own context:
 - `docs/softogram-growth.md` (in the main `softogram-projects` folder) — explains the bigger picture: why Softogram builds one small tool every week.
 - `CLAUDE.md` — the rules this whole project follows (what to build, what language to use, how to write docs, and what "finished" means).
 - `LOG.md` — the day-by-day log of what's done and what's left for this specific project.
+- `docs/FUTURE-UPGRADES.md` — the expanded version of Section 11: everything that could make this tool more complete or robust later, organized by category.
