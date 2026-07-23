@@ -47,3 +47,22 @@ See this folder's `CLAUDE.md` section 5 for why this exists.
   Asked to pick tools for "enterprise development," the honest answer wasn't to add process (pre-commit matrices, tox, semantic-release, security scanners) - it was to pick the same defaults real production codebases already converged on (`pytest`, `ruff`, `pyproject.toml` + `hatchling`, optional `mypy`), because those defaults earned their status precisely by being simple *and* robust at once.
   The actual enterprise practices left out (multi-version test matrices, release automation) are about coordinating a team over time, not about whether a solo 10-hour tool's rules are correct - so they went into `docs/FUTURE-UPGRADES.md` instead of the v1 scaffold.
   How to explain it to someone else: "the boring choice and the enterprise choice are usually the same tool, once you separate 'correctness tooling' from 'team-coordination process.'"
+
+## 2026-07-21 - LLD 001 proposal: rule format, registry, and the shape of a matcher's answer
+
+- **Concept: a registry is a choice between visible and invisible wiring.**
+  Three ways exist to connect a rule id to its matcher code: an explicit lookup table (one visible mapping, read in a glance), decorator self-registration (each matcher tags itself, a registry fills up as a side effect of imports), and filename conventions (the engine guesses wiring from file names).
+  The explicit table won because the other two trade five lines of typing for invisible machinery: decorator registries depend on import order and side effects, and convention-based discovery silently unwires a rule when a file gets renamed.
+  How to explain it to someone else: "for five rules, a table you can read beats a mechanism you have to trust."
+- **Concept: constraining what a matcher can say is what enforces honesty mechanically.**
+  A matcher's entire vocabulary in the proposed contract is line numbers plus one cannot-tell flag; every printed word (severity, confidence, explanation, source link) comes from the metadata file.
+  This is not just tidiness: it means a rule physically cannot be promoted from "worth checking" to "will break" inside code, only by a visible one-line data diff in version control.
+  How to explain it to someone else: "if the code can't speak, the code can't lie - the data file does all the talking, and data diffs are easy to review."
+- **Concept: an optional contract feature keeps a special case from taxing everyone.**
+  R3 needs a third outcome (cannot tell, human must check), but forcing all five matchers to know about a three-state result would push R3's complexity onto four rules that never use it.
+  The proposed shape makes the cannot-tell marker part of the general contract (so the engine stays rule-agnostic) but optional to return (so simple rules stay a list of hits).
+  How to explain it to someone else: "design the contract so the common case doesn't pay for the rare one."
+- **Process: a deadline that slipped changes what the deadline is.**
+  The weekend ship target (Jul 18-19) passed with all planning done and zero build hours spent.
+  The date that actually matters was always the spec landing on Jul 28: shipping before it keeps the tool's "find out before it breaks" pitch honest; shipping after turns it into a cleanup tool and forces re-verifying every rule against final spec text.
+  How to explain it to someone else: "when you miss an internal deadline, re-anchor to the external one, because that one doesn't move."
