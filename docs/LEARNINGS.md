@@ -66,3 +66,13 @@ See this folder's `CLAUDE.md` section 5 for why this exists.
   The weekend ship target (Jul 18-19) passed with all planning done and zero build hours spent.
   The date that actually matters was always the spec landing on Jul 28: shipping before it keeps the tool's "find out before it breaks" pitch honest; shipping after turns it into a cleanup tool and forces re-verifying every rule against final spec text.
   How to explain it to someone else: "when you miss an internal deadline, re-anchor to the external one, because that one doesn't move."
+
+## 2026-07-23 - LLD 002: report determinism and the exit-code collision
+
+- **Concept: snapshot-testable output must be deterministic by contract, not by luck.**
+  The E2E check compares the CLI's report to a stored snapshot byte for byte, so every source of run-to-run variation had to be squeezed out explicitly: fully specified sort orders (never filesystem walk order or dict order), paths relative to the scan root with forward slashes on every platform, and no timestamps, durations, colors, or version strings anywhere in the output.
+  How to explain it to someone else: "if you want to diff a program's output against a saved copy, the output has to be a pure function of the input - list everything else that could leak in, and ban each one."
+- **Concept: a crashing Python program exits with code 1 - the same code this tool uses to mean "your server will break."**
+  Without a crash guard, a bug in the checker is indistinguishable from a real finding to any script reading the exit code, which silently poisons the tool's most machine-readable signal.
+  The fix is a top-level guard that catches unexpected failures and exits with a distinct code (3), leaving 0/1/2 with their settled meanings.
+  How to explain it to someone else: "decide what every exit code means, including the one your language emits when you crash - because your users' scripts can't tell your bug from your verdict."
