@@ -13,16 +13,43 @@ This tool reads your server's code and reports exactly what needs to change, in 
 
 ## Download and run - no Python required
 
-Grab the file for your platform from the [latest release](https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases/latest), make it executable, and run it:
+This is a single, standalone file (built by [PyInstaller](https://pyinstaller.org/)) - no Python install, no `pip install`, no cloning this repo. Pick the command for your platform.
+
+**macOS (Apple Silicon):**
 
 ```
-chmod +x mcp-migration-check-*
-./mcp-migration-check-* path/to/your/server
+curl -L -o mcp-migration-check https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases/latest/download/mcp-migration-check-macos-arm64
+chmod +x mcp-migration-check
+./mcp-migration-check path/to/your/server
 ```
 
-This is a single, standalone file (built by [PyInstaller](https://pyinstaller.org/)) - no Python install, no `pip install`, no cloning this repo. Leave off the path and it checks the current folder.
+**Linux (x86_64):**
 
-macOS and Windows may show a first-run warning since the binary isn't code-signed (normal for a small open-source tool) - right-click and choose "Open" on macOS, or click "More info -> Run anyway" on Windows, to bypass it once.
+```
+curl -L -o mcp-migration-check https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases/latest/download/mcp-migration-check-linux-x86_64
+chmod +x mcp-migration-check
+./mcp-migration-check path/to/your/server
+```
+
+**Windows (x86_64, PowerShell):**
+
+```
+Invoke-WebRequest -Uri "https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases/latest/download/mcp-migration-check-windows-x86_64.exe" -OutFile "mcp-migration-check.exe"
+.\mcp-migration-check.exe path\to\your\server
+```
+
+Leave off the path on any platform and it checks the current folder.
+
+Every download link above always points at the newest release - see all versions on the [releases page](https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases).
+
+macOS and Windows may show a first-run warning since the binary isn't code-signed (normal for a small open-source tool) - right-click the file and choose "Open" on macOS, or click "More info -> Run anyway" on Windows, to bypass it once.
+
+Want it on your `PATH` so you can just type `mcp-migration-check` from anywhere? Move the downloaded file into a folder already on your `PATH` (for example `/usr/local/bin` on macOS/Linux) after making it executable:
+
+```
+sudo mv mcp-migration-check /usr/local/bin/
+mcp-migration-check path/to/your/server
+```
 
 ## Or install with pip, if you already have Python
 
