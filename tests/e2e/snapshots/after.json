@@ -1,0 +1,13 @@
+{
+  "scanned_path": "examples/after",
+  "files_scanned": 2,
+  "findings": [],
+  "manual_checks": [],
+  "skipped_files": [],
+  "summary": {
+    "will_break": 0,
+    "worth_checking": 0,
+    "needs_manual_check": 0,
+    "files_skipped": 0
+  }
+}

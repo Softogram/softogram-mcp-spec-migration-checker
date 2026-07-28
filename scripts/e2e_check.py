@@ -24,26 +24,30 @@ REPO_ROOT = Path(__file__).parent.parent
 SNAPSHOTS_DIR = REPO_ROOT / "tests" / "e2e" / "snapshots"
 
 CASES = [
-    # (example folder, snapshot file, expected exit code)
-    ("examples/before", "before.txt", 1),
-    ("examples/after", "after.txt", 0),
+    # (example folder, extra CLI args, snapshot file, expected exit code)
+    ("examples/before", [], "before.txt", 1),
+    ("examples/after", [], "after.txt", 0),
+    ("examples/before", ["--json"], "before.json", 1),
+    ("examples/after", ["--json"], "after.json", 0),
 ]
 
 
-def _run_cli(path_arg: str) -> subprocess.CompletedProcess:
+def _run_cli(path_arg: str, extra_args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["mcp-migration-check", path_arg],
+        ["mcp-migration-check", *extra_args, path_arg],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
     )
 
 
-def _check_one(example_path: str, snapshot_name: str, expected_exit: int) -> list[str]:
+def _check_one(
+    example_path: str, extra_args: list[str], snapshot_name: str, expected_exit: int
+) -> list[str]:
     problems: list[str] = []
     expected_text = (SNAPSHOTS_DIR / snapshot_name).read_text()
 
-    result = _run_cli(example_path)
+    result = _run_cli(example_path, extra_args)
 
     if result.returncode != expected_exit:
         problems.append(
@@ -76,8 +80,8 @@ def main() -> int:
         return 1
 
     all_problems: list[str] = []
-    for example_path, snapshot_name, expected_exit in CASES:
-        all_problems.extend(_check_one(example_path, snapshot_name, expected_exit))
+    for example_path, extra_args, snapshot_name, expected_exit in CASES:
+        all_problems.extend(_check_one(example_path, extra_args, snapshot_name, expected_exit))
 
     if all_problems:
         print("e2e_check: FAILED\n")

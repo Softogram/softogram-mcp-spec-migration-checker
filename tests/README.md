@@ -37,5 +37,6 @@ To add a test for a new rule fixture:
 - `test_discovery.py` - virtualenvs, hidden folders, and caches are skipped; real files are found.
 - `test_engine.py` - a malformed file becomes a skipped-file warning and the scan continues.
 - `test_cli_exit_codes.py` - the 0/1/2 exit code contract, run through the actual CLI entry point as a subprocess.
+- `test_cli_json_and_explain.py` - `--json` round-trips through a parser and matches the human report's content; `--explain` prints rule metadata and exits 2 on an unknown rule id.
 
-`scripts/e2e_check.py` is a separate, higher layer: it runs the *installed* CLI against `examples/before` and `examples/after` and diffs the report against a checked-in snapshot. It is the release gate, not a unit test - see `docs/high-level-design/001-scan-pipeline.md`, testing layer 3.
+`scripts/e2e_check.py` is a separate, higher layer: it runs the *installed* CLI against `examples/before` and `examples/after` (both the plain report and `--json`) and diffs the output against a checked-in snapshot. It is the release gate, not a unit test - see `docs/high-level-design/001-scan-pipeline.md`, testing layer 3.
