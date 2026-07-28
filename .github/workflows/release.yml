@@ -50,8 +50,20 @@ jobs:
         shell: bash
         run: |
           chmod +x "dist/${{ matrix.asset_name }}" || true
-          "./dist/${{ matrix.asset_name }}" examples/before; test $? -eq 1
-          "./dist/${{ matrix.asset_name }}" examples/after; test $? -eq 0
+
+          rc=0
+          "./dist/${{ matrix.asset_name }}" examples/before || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "expected exit code 1 for examples/before, got $rc"
+            exit 1
+          fi
+
+          rc=0
+          "./dist/${{ matrix.asset_name }}" examples/after || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "expected exit code 0 for examples/after, got $rc"
+            exit 1
+          fi
 
       - name: Upload artifact to the workflow run
         uses: actions/upload-artifact@v4
