@@ -76,3 +76,19 @@ See this folder's `CLAUDE.md` section 5 for why this exists.
   Without a crash guard, a bug in the checker is indistinguishable from a real finding to any script reading the exit code, which silently poisons the tool's most machine-readable signal.
   The fix is a top-level guard that catches unexpected failures and exits with a distinct code (3), leaving 0/1/2 with their settled meanings.
   How to explain it to someone else: "decide what every exit code means, including the one your language emits when you crash - because your users' scripts can't tell your bug from your verdict."
+
+## 2026-07-28 - Ship day: R3's final answer, the R1/R2 boundary in practice, and a packaging trap
+
+- **Concept: "confirmed by the spec" and "detectable in app code" can resolve to two different scopes for the same rule.**
+  LLD 003 closed issues #20/#21 by narrowing R3 from "any Streamable HTTP server missing the headers" to "hand-rolled MCP-over-HTTP transport code missing them" - the SDK's own built-in transport handles the headers internally, so a server using it has nothing in its own source for a static reader to flag.
+  The rule stays Confirmed (the spec change is real) but its match target shrank to exactly the code a static tool can honestly see.
+  How to explain it to someone else: "a spec change being real doesn't mean every server that's affected by it has a visible fingerprint in its own source - find the actual fingerprint before writing the matcher."
+- **Concept: an ambiguous line needs one rule to actively yield, not two rules to coincidentally agree.**
+  `BASKETS[ctx.session_id] = ...` is simultaneously "reading a session id" (R1) and "memory keyed by a session" (R2).
+  Implemented as two independent matchers, both would fire on the same line, which reads to a user as double-counting one problem, not two.
+  The fix: R1's matcher explicitly marks the descendants of a subscript's key and of `get`/`setdefault`/`pop` call arguments as "not mine" before checking for its own pattern, so the boundary is enforced by one rule declining, not by two rules cooperating.
+  How to explain it to someone else: "when two rules can both see the same evidence, decide in code which one recuses - don't rely on them never overlapping in practice."
+- **Process: a packaging config that "should" work can still break editable installs in ways worth just avoiding.**
+  Adding `force-include` to place `rules.toml` into the wheel produced a real (non-editable) directory inside the venv's `site-packages/mcp_migration_check/`, which then shadowed the editable-install redirect for the *entire* package - `import mcp_migration_check.models` failed with the package resolving to that mostly-empty directory instead of `src/`.
+  The fix wasn't debugging the interaction further; it was recognizing hatchling's default wheel packaging already includes non-`.py` files under a declared package directory, so the special-case force-include was solving a problem that didn't exist and only added risk.
+  How to explain it to someone else: "before reaching for a packaging escape hatch, check whether the default behavior already does what you were about to force."

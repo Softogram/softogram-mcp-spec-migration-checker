@@ -1,0 +1,5 @@
+mcp-migration-check: scanned 2 Python files under examples/after
+
+No migration findings found.
+
+Summary: 0 will break, 0 worth checking, 0 needs manual check, 0 files skipped

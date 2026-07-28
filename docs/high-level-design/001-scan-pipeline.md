@@ -99,7 +99,7 @@ Detection checks signals in this order, strongest first:
 
 None of these signals fires when the transport is decided purely at runtime (a CLI flag, an environment variable, a config file read at startup) - that case is exactly what "can't tell" exists for, since no amount of static reading resolves it.
 
-**Open prerequisite, tracked separately (not yet resolved by this doc):** `Mcp-Method`/`Mcp-Name` are transport-layer HTTP headers. If the official MCP Python SDK's Streamable HTTP transport emits and validates them internally, a server built on an up-to-date SDK may comply automatically with no pattern in the *application* code to match on. Whether R3 has a real app-code target at all - or must be narrowed to hand-rolled/custom transport wiring only - is a dedicated LLD investigation (see GitHub issue tracking; this must be answered before R3 ships as Confirmed/"This will break").
+**Resolved 2026-07-28, see [LLD 003](../low-level-design/003-r3-transport-detection.md):** `Mcp-Method`/`Mcp-Name` are transport-layer HTTP headers, and the official MCP Python SDK's Streamable HTTP transport handles them internally - so R3 is narrowed to fire "This will break" only on hand-rolled/custom transport wiring that bypasses the SDK's built-in transport, never on SDK-managed servers. LLD 003 also settles the full signal-order table and the fourth "can't tell" fixture for issue #9.
 
 ## Testing strategy
 

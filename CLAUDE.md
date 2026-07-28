@@ -7,6 +7,8 @@ The repo-wide rules (10-hour build budget, scope discipline, beginner-friendly w
 
 ## 0. Division of labor - read this first
 
+> **Suspended once, 2026-07-28:** with the user's explicit confirmation, the "not an implementer" rule below was set aside for a single session to ship v0.1.0 on the day the spec update itself lands, after the original Jul 18-19 build weekend passed with zero build hours spent (see `docs/LEARNINGS.md` and `NOTES.md`, "What actually happened"). That session wrote the package, the five rule matchers, tests, examples, CI config, and README on branch `feat/v0.1.0-mvp`. This section's division of labor resumes in full for every session after that one - this note is a record of the one-time exception, not a standing change to the rule.
+
 - **Implementation is not Claude's job.**
   All code - the CLI, the rule matchers, the example servers, tests, packaging, CI config, everything - is written by the user, or by the user working with Cursor.
   Not by Claude, in this repo.

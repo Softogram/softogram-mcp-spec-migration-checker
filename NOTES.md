@@ -46,3 +46,14 @@ Exits with an error code if anything "will break" is found.
 
 - Implementation: user (+ Cursor). Planning, issues, and PR review: Claude. See this folder's `CLAUDE.md`.
 - Budget: ~10 hours hands-on. If the MVP list isn't finishable by hour 10, cut from the bottom of the "in scope" list, never past the before/after example - the proof it works ships no matter what.
+
+## What actually happened (2026-07-28, ship day)
+
+The plan above assumed a Jul 18-19 weekend build.
+That weekend passed with all planning settled (PRD, HLD 001, both LLDs) and zero build hours spent - see `docs/LEARNINGS.md`, 2026-07-21 entry, "a deadline that slipped changes what the deadline is."
+
+On 2026-07-28 (the day the actual spec update lands, and the last day this project's plan allows for), the user asked for the project to be completed end to end in one session.
+This project's `CLAUDE.md` (Section 0) restricts Claude to planning, documentation, issue management, and PR review - never implementation.
+That rule was suspended for this session only, with the user's explicit confirmation, to make the ship date; a dated note recording the suspension is in this folder's `CLAUDE.md`.
+Every item in the "in scope" list above shipped, including the two design gates (R3 detectability and signal order) that were still open going into today - closed as `docs/low-level-design/003-r3-transport-detection.md` before implementation started.
+The normal working agreement (user/Cursor implements, Claude plans and reviews) resumes after this session.
