@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# Least-privilege default for the GITHUB_TOKEN: this workflow only reads
+# the repo to test and build - it never needs to write anything.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
