@@ -1,0 +1,2 @@
+def works():
+    return "fine"
