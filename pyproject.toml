@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-migration-check"
-version = "0.1.0"
+version = "0.1.1"
 description = "Static analysis CLI that reports what will break in a Python MCP server under the 2026-07-28 MCP spec update."
 readme = "README.md"
 requires-python = ">=3.11"
