@@ -1,0 +1,50 @@
+# Rule metadata for mcp-migration-check.
+#
+# Each section below is one rule. See docs/low-level-design/001-rule-definition-format.md
+# for the field contract. Adding or removing a rule should only ever mean
+# editing this file plus a matcher module and a registry line - never the
+# engine or reporter.
+#
+# Re-verify every row here against the official spec once it publishes on
+# 2026-07-28 - see docs/PRD.md section 11, item 1.
+
+[R1]
+title = "Old-style session usage"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "Sessions are removed in the 2026-07-28 spec update. Every request must carry what it needs on its own; code that reads or stores a session ID will stop working. Replace it with an explicit handle the client passes back on later requests."
+source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
+source_checked = "2026-07-14"
+
+[R2]
+title = "Session-keyed server memory"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "Server-side memory keyed to a session must become an explicit handle that the client passes back on later requests, instead of being hidden inside a session the server remembers on its own."
+source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
+source_checked = "2026-07-14"
+
+[R3]
+title = "Hand-rolled transport missing Mcp-Method / Mcp-Name"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "The 2026-07-28 update requires the Mcp-Method and Mcp-Name headers on every Streamable HTTP POST request. This only applies to hand-rolled MCP-over-HTTP transport code - servers using the official SDK's built-in Streamable HTTP transport get this handled for them. If you wrote your own transport wiring instead of using the SDK's, add both headers."
+source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
+source_checked = "2026-07-14"
+manual_check_text = "Your server's transport (web vs. local-only, or which transport mechanism) is decided at runtime or through an import the tool can't resolve statically, so it cannot tell whether this rule applies. If your server is reachable over the web using hand-rolled (non-SDK) transport code, both Mcp-Method and Mcp-Name are required on every request - please check by hand."
+
+[R4]
+title = "Phased-out capability: Roots / Sampling / Logging"
+severity = "worth-checking"
+confidence = "reported"
+explanation = "Trusted sources close to MCP report Roots, Sampling, and Logging are being phased out, with a year's grace period before anything stops working. This will not break on July 28, but plan to move off it."
+source_url = "https://aaif.io/blog/mcp-is-growing-up/"
+source_checked = "2026-07-14"
+
+[R5]
+title = "Hand-written MCP error number"
+severity = "worth-checking"
+confidence = "reported"
+explanation = "Trusted sources report MCP error numbers may change in this update, but the official changelog does not confirm which ones. Verify this number against the final spec rather than relying on the hand-written value."
+source_url = "https://chatforest.com/builders-log/mcp-spec-2026-07-28-release-candidate-stateless-breaking-changes-builder-guide/"
+source_checked = "2026-07-14"
