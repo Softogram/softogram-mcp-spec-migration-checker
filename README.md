@@ -50,17 +50,17 @@ Running the tool on it looks like this:
 ```
 $ mcp-migration-check examples/before
 
-mcp-migration-check: scanned 2 Python files under examples/before
+mcp-migration-check: scanned 3 Python files under examples/before
 
 server.py
   line 19  [THIS WILL BREAK]  (Confirmed)  R3 - Hand-rolled transport missing Mcp-Method / Mcp-Name
       > async def app(scope, receive, send):
       The 2026-07-28 update requires the Mcp-Method and Mcp-Name headers on every
-      Streamable HTTP POST request. This only applies to hand-rolled MCP-over-HTTP
-      transport code - servers using the official SDK's built-in Streamable HTTP
-      transport get this handled for them. If you wrote your own transport wiring
-      instead of using the SDK's, add both headers.
-      Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
+      Streamable HTTP POST request (SEP-2243). This only applies to hand-rolled
+      MCP-over-HTTP transport code - servers using the official SDK's built-in
+      Streamable HTTP transport get this handled for them. If you wrote your own
+      transport wiring instead of using the SDK's, add both headers.
+      Source: https://modelcontextprotocol.io/specification/2026-07-28/changelog.md (checked 2026-07-28)
 
   line 24  [THIS WILL BREAK]  (Confirmed)  R1 - Hand-rolled reading of the old session header
       > session_id = headers.get("mcp-session-id")
@@ -68,7 +68,13 @@ server.py
 
   ...
 
-Summary: 5 will break, 2 worth checking, 0 needs manual check, 0 files skipped
+tools/legacy_handlers.py
+  line 28  [THIS WILL BREAK]  (Confirmed)  R6 - SSE resumability opt-in (event_store)
+      ...
+
+  ...
+
+Summary: 10 will break, 1 worth checking, 0 needs manual check, 0 files skipped
 ```
 
 `examples/after/` is the same server, migrated.
@@ -95,33 +101,42 @@ Every finding in the report is labeled with one of these two confidence tiers, s
 
 | Confidence | What it means | Shown in the report as |
 |---|---|---|
-| **Confirmed** | Listed on the [official MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | "This will break" |
+| **Confirmed** | Listed on the [official MCP changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog.md) | "This will break" |
 | **Reported** | Described by trusted secondary sources, not yet on the official page | "Worth checking" |
+
+The spec's final text published on 2026-07-28, so every rule below is now Confirmed - every claim traces to the official changelog itself, not a secondhand source.
 
 A separate, fourth thing a finding can say is **"we couldn't tell if this applies to you"** (`NEEDS-MANUAL-CHECK`).
 This happens for R3 when your server's transport (web-reachable vs. local-only) is decided at runtime - something reading the code alone can never resolve.
 It's not a severity and it never affects the exit code.
 See `tests/fixtures/r3/cannot_tell_runtime_transport.py` for a worked example.
 
-## The five rules
+## The eight rules
 
-| ID | What it checks for | Severity | Confidence | Source | Last checked |
-|---|---|---|---|---|---|
-| R1 | Hand-rolled reading of the raw `Mcp-Session-Id` header by name (bypassing the SDK's own session handling) | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-28 |
-| R2 | Server memory keyed to a session instead of an explicit handle | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-14 |
-| R3 | Hand-rolled HTTP transport missing the two new required headers, `Mcp-Method` and `Mcp-Name` | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-14 |
-| R4 | Use of Roots, Sampling, or Logging (reported as being phased out) | Worth checking | Reported | [AAIF blog](https://aaif.io/blog/mcp-is-growing-up/) | 2026-07-14 |
-| R5 | Hand-written MCP error numbers | Worth checking | Reported | [ChatForest builder's guide](https://chatforest.com/builders-log/mcp-spec-2026-07-28-release-candidate-stateless-breaking-changes-builder-guide/) | 2026-07-14 |
+| ID | What it checks for | Severity | Confidence |
+|---|---|---|---|
+| R1 | Hand-rolled reading of the raw `Mcp-Session-Id` header by name (bypassing the SDK's own session handling) | This will break | Confirmed |
+| R2 | Server memory keyed to a session instead of an explicit handle | This will break | Confirmed |
+| R3 | Hand-rolled HTTP transport missing the two new required headers, `Mcp-Method` and `Mcp-Name` | This will break | Confirmed |
+| R4 | Use of Roots, Sampling, or Logging (deprecated, twelve-month grace period) | Worth checking | Confirmed |
+| R5 | Hand-written use of one of the four MCP error codes the spec renumbered | This will break | Confirmed |
+| R6 | Opting into SSE stream resumability via `event_store` (removed entirely) | This will break | Confirmed |
+| R7 | Old-style `resources/subscribe` or `resources/unsubscribe` request handler | This will break | Confirmed |
+| R8 | Old-style `logging/setLevel` request handler | This will break | Confirmed |
+
+Source for every rule: the [official MCP changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog.md), last checked 2026-07-28. See `src/mcp_migration_check/rules/rules.toml` for each rule's exact SEP citation and full explanation.
 
 **A note on R3:** `Mcp-Method` and `Mcp-Name` are headers added at the transport layer (the part of the code that turns MCP messages into HTTP requests), not something most application code touches directly.
 If your server uses the official MCP Python SDK's built-in Streamable HTTP transport, the SDK handles these headers for you automatically - there is nothing in your own code for this tool to flag, and R3 stays silent.
 R3 only fires "This will break" on servers that hand-roll their own HTTP transport code instead of using the SDK's.
 See `docs/low-level-design/003-r3-transport-detection.md` for the full reasoning.
 
-**A note on R1:** reading `ctx.session_id` through the SDK's own `Context` object is a legitimate, still-supported convenience property in the real MCP Python SDK (confirmed by installing it directly) - it exposes the transport's connection id, not the removed protocol-level session handshake, so this tool does not flag it. R1 only fires on code that reads the raw `Mcp-Session-Id` header by its literal name, which only happens in code that bypasses the SDK's session handling entirely. See `docs/LEARNINGS.md`'s 2026-07-28 entry for how this was caught.
+**A note on R1:** reading `ctx.session_id` through the SDK's own `Context` object is a legitimate, still-supported convenience property in the real MCP Python SDK (confirmed by installing it directly) - it exposes the transport's connection id, not the removed protocol-level session handshake, so this tool does not flag it. R1 only fires on code that reads the raw `Mcp-Session-Id` header by its literal name, which only happens in code that bypasses the SDK's session handling entirely. See `docs/LEARNINGS.md`'s 2026-07-28 entries for how this was caught, and for R6/R7/R8's own real-SDK verification.
 
-**Known unknowns - not checked in this version:** independent trackers mention MCP error numbers may change, but no source confirms which ones, so this tool never guesses a specific number.
-It also does not check for the new task-handling, visual-interface, or stricter login/security features in the same update, since those are new additions rather than things that break existing code.
+**A note on R4 vs. R8:** both involve "logging," but they're different facts. R4 is about *consuming* the deprecated Logging capability from a tool (twelve-month grace period, still works). R8 is about a server *implementing the specific removed `logging/setLevel` request handler* itself (no grace period - the request is gone). Checking the real SDK showed `set_logging_level` is never a method on the client-facing session object app code uses - only a low-level `Server` decorator for registering that handler - so it was moved out of R4 entirely into R8.
+
+**Known unknowns - not checked in this version:** two backlog rule candidates (the removed `initialize`/`notifications/initialized` handshake, and the new required `server/discover` RPC) were investigated against the real SDK and found to have no clean, low-false-positive signal in application code - both are handled internally by the SDK for any server using it, with no public hook a developer would write custom code against. Flagging their absence would mean guessing. See `docs/LEARNINGS.md` for the investigation.
+This tool also does not check for the new task-handling, visual-interface, or stricter login/security features in the same update, since those are new additions rather than things that break existing code.
 See `docs/PRD.md` section 4.2 for the full list of changes being tracked but not built into a rule yet.
 
 ## What this tool does NOT do

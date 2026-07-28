@@ -13,6 +13,9 @@ from mcp_migration_check.rules import (
     r3_required_headers,
     r4_phased_out_capabilities,
     r5_error_numbers,
+    r6_sse_resumability,
+    r7_old_subscribe_handlers,
+    r8_old_logging_set_level_handler,
 )
 
 REGISTRY = {
@@ -21,4 +24,7 @@ REGISTRY = {
     "R3": r3_required_headers.match,
     "R4": r4_phased_out_capabilities.match,
     "R5": r5_error_numbers.match,
+    "R6": r6_sse_resumability.match,
+    "R7": r7_old_subscribe_handlers.match,
+    "R8": r8_old_logging_set_level_handler.match,
 }

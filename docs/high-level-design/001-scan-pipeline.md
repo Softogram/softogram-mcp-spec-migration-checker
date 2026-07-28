@@ -68,17 +68,24 @@ This is the one piece of extensibility the PRD asks for, and the only one we bui
 Why this split matters: when the final spec publishes on July 28, updating the tool means editing the rules file (and possibly matcher logic for changed patterns) - not rewriting the pipeline.
 It also makes the confidence-tier honesty auditable: every claim the tool prints traces to one row of metadata with a source link.
 
-## The five MVP rules
+## The eight rules
+
+R1-R5 were the MVP scope for Week 1 (`NOTES.md`). R6-R8 were added 2026-07-28, the day the final spec published, by picking up three of the five backlog SEP-2575 rule candidates (`docs/PRD.md` section 4.2) once each had a real, checked-against-the-SDK detection target.
 
 | ID | What it looks for | Severity | Confidence |
 |---|---|---|---|
 | R1 | Hand-rolled reading of the raw `Mcp-Session-Id` header by name (narrowed 2026-07-28 after checking against the real SDK - see `docs/LEARNINGS.md`, 2026-07-28 entry) | This will break | Confirmed |
 | R2 | Server memory keyed to a session instead of an explicit visible handle | This will break | Confirmed |
 | R3 | Web-exposed server code missing the two new required headers, `Mcp-Method` and `Mcp-Name`; skipped when the server is local-only (stdio) | This will break | Confirmed |
-| R4 | Use of Roots / Sampling / Logging (being phased out) | Worth checking | Reported |
-| R5 | Hand-written MCP error numbers | Worth checking | Reported |
+| R4 | Use of Roots / Sampling / Logging (deprecated, twelve-month grace period) | Worth checking | Confirmed |
+| R5 | Hand-written use of one of the four MCP error codes the final spec's error-code allocation policy renumbers | This will break | Confirmed |
+| R6 | Opting into SSE stream resumability via `event_store` (removed entirely) | This will break | Confirmed |
+| R7 | Old-style `resources/subscribe`/`resources/unsubscribe` request-handler registration | This will break | Confirmed |
+| R8 | Old-style `logging/setLevel` request-handler registration | This will break | Confirmed |
 
 Exactly which AST patterns each rule matches (and deliberately ignores) is low-level design, worked out per-rule in the LLD issues - the user proposes those, per `CLAUDE.md` section 2.
+
+**Not implemented, investigated 2026-07-28:** two more backlog SEP-2575 candidates - the removed `initialize`/`notifications/initialized` handshake and the new required `server/discover` RPC. Both are handled entirely inside the SDK's transport/dispatch layer for any server built on it; neither has a public hook a developer would write custom code against in either the pre- or post-update SDK, so there's no clean, low-false-positive app-code signal to match on. See `docs/LEARNINGS.md`'s 2026-07-28 entry.
 
 ### R3: transport detection and the "can't tell" case
 
