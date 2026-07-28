@@ -8,7 +8,7 @@ This folder has two copies of the same small MCP (Model Context Protocol) server
 Both are real, runnable code, checked against the actual `mcp` package (not just hand-written to look plausible):
 
 - `before/server.py` was driven end-to-end with a real ASGI call (fake `scope`/`receive`/`send`) to confirm it genuinely works.
-- `before/tools/logging_setup.py` was imported against a real installed `mcp==1.29.0` (the last release before the spec update).
+- `before/tools/logging_setup.py` and `before/tools/legacy_handlers.py` were imported against a real installed `mcp==1.29.0` (the last release before the spec update).
 - `after/server.py` and `after/tools/logging_setup.py` were imported against a real installed `mcp==2.0.0` (the first release after the spec update, published the same day it landed).
 
 Run the checker on both to see the difference for yourself:
@@ -29,14 +29,19 @@ The migrated server drops the hand-rolled transport and uses the SDK's own `mcp.
 The old server used the extracted session ID as the key for a `BASKETS` dictionary - so the server had to "remember" which basket belonged to which session.
 The migrated server instead takes a `basket_handle` argument directly on each tool call - an explicit, visible ID the client passes back every time, instead of something hidden inside a session.
 
-**Hand-written error numbers became SDK constants (R5).**
-The old server computed the error code `-32601` by hand and assigned it to a variable before using it.
-Trusted sources report that MCP's error numbers may change in this update, but nobody has confirmed exactly which ones - so hard-coding a number is a bet that might not pay off.
-The migrated server imports the real `mcp.types.METHOD_NOT_FOUND` constant instead, so if the number ever changes, the SDK's own update carries the fix automatically.
+**A hand-written error number became an SDK constant (R5).**
+The old server computed the error code `-32002` ("resource not found") by hand and assigned it to a variable before using it, for a basket that doesn't exist.
+The final spec's error-code allocation policy renumbers this exact code to `-32602` - one of only four codes confirmed to move.
+The migrated server imports the real `mcp.types.METHOD_NOT_FOUND` constant for its one remaining hand-written case, so if that number ever changes, the SDK's own update carries the fix automatically.
 
 **A phased-out logging capability became plain Python logging (R4).**
 The old server's debug tool calls `ctx.session.send_log_message(...)` - the real MCP Python SDK's own Logging capability, which the SDK's own source now marks deprecated as of 2026-07-28.
 The migrated server just uses Python's ordinary standard-library `logging` module, which the spec update has no effect on at all.
+
+**Old-style low-level handlers and resumability just disappear (R6, R7, R8).**
+`before/tools/legacy_handlers.py` demonstrates three more things the update removes outright: opting into SSE stream resumability via `event_store` (R6), and the low-level `Server`'s `subscribe_resource`/`unsubscribe_resource` (R7) and `set_logging_level` (R8) request-handler decorators.
+There is no `after/` counterpart file for this one - nothing replaces these patterns, they're just gone.
+Resumability has no equivalent in the new stateless model; subscriptions move to the new `subscriptions/listen` stream (which a real migration would implement separately, not shown here); log level now travels per-request in `_meta` instead of a dedicated handler.
 
 ## A false positive we caught by checking the real SDK
 

@@ -135,6 +135,10 @@ That's why a SEP stays in this "watch, don't build yet" bucket until its merge s
 
 **A correction to what this document said earlier:** an earlier version of this table recorded SEP-2575 as "open / in review, not merged," based on our own research at the time, and separately noted that an automated lookup claiming it was merged shouldn't be trusted, since this project works against a hypothetical future timeline. That automated lookup's conclusion has now been confirmed correct through a different, trusted channel — so the status above is corrected accordingly. The general caution stands for SEP-2322 and the SEP-2663/2557 discrepancy, which remain unconfirmed.
 
+**Update, 2026-07-28 — the final spec published, and the SEP-2575 backlog got its correction pass early.** With the actual final (non-draft) changelog live at `https://modelcontextprotocol.io/specification/2026-07-28/changelog.md`, three of the five SEP-2575 backlog issues turned out to have a real, low-false-positive app-code signal once checked against the real installed `mcp` package (both the pre-update `1.29.0` and the post-update `2.0.0` release) and were implemented as R6 (SSE resumability opt-in via `event_store`), R7 (old `resources/subscribe`/`resources/unsubscribe` handlers), and R8 (old `logging/setLevel` handler). The other two — the removed `initialize`/`notifications/initialized` handshake and the new required `server/discover` RPC — were investigated the same way and found to have **no clean app-code signal at all**: both are handled entirely inside the SDK's transport/dispatch layer for any server built on it, with no public hook a developer would write custom code against, so a rule would either never fire for real servers or would have to guess at hand-rolled dispatch code already covered by R3's theme. Per this project's own rule of not guessing at undetectable patterns (Section 12), no rule was built for either. See `docs/LEARNINGS.md`'s 2026-07-28 entries for the full investigation.
+
+A related correction while doing this pass: the session/handle-removal citation for R1 and R2 is more precisely **SEP-2567**, not SEP-2575 — the changelog attributes the `Mcp-Session-Id` header and protocol-level session removal specifically to SEP-2567, a sibling proposal to the broader stateless-handshake work in SEP-2575. Both rules' metadata now cite the more precise number.
+
 ## 5. Why did we build it this way?
 
 **Why read the code instead of running it:** running someone's server would mean handling their passwords, settings, and other dependencies — a much bigger and riskier job than we can do in 10 hours. Reading the code is simpler and safer.
@@ -206,7 +210,7 @@ Nice to have, only if time allows:
 
 If this project gets more time later (following this repo's rule of only investing more once something shows real interest — stars, installs, people asking about it):
 
-1. **Update the rules once the official rulebook is fully published on July 28.** This should happen regardless of whether the tool is popular, since it's what keeps the tool trustworthy.
+1. ~~**Update the rules once the official rulebook is fully published on July 28.**~~ **Done, 2026-07-28** — every rule re-verified against the final changelog the same day it published; R4 promoted to Confirmed, R5 narrowed to the four confirmed-renumbered codes, R1/R2's SEP citation corrected, and three backlog SEP-2575 candidates (R6, R7, R8) implemented. See Section 4.2's 2026-07-28 update note and `docs/LEARNINGS.md`.
 2. **Add the `--json` option and a small helper for automated pipelines** (like GitHub Actions).
 3. **Support TypeScript-based MCP servers**, using the same approach.
 4. **Add a "here's exactly what to change" preview mode** that shows the fix without applying it — a safer middle step before ever trying to auto-fix code.
