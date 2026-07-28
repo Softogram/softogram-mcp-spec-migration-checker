@@ -33,8 +33,18 @@ jobs:
 
       - name: Standalone-executable build smoke test
         run: |
-          pip install ".[build]"
-          pyinstaller mcp-migration-check.spec --noconfirm
+          # Build inside python:3.11-slim-bookworm, same as release.yml -
+          # a binary built directly on ubuntu-latest requires a newer
+          # glibc than most deployed Linux servers actually have. See
+          # release.yml's build step and docs/LEARNINGS.md's 2026-07-29
+          # entry for how this was found and verified.
+          docker run --rm -v "$PWD":/repo -w /repo python:3.11-slim-bookworm bash -c "
+            apt-get -qq update &&
+            apt-get -qq install -y binutils &&
+            pip install -q '.[build]' &&
+            pyinstaller mcp-migration-check.spec --noconfirm
+          "
+          sudo chown -R "$(id -u):$(id -g)" dist/
 
           rc=0
           ./dist/mcp-migration-check examples/before || rc=$?
