@@ -41,6 +41,32 @@ Leave off the path and it checks the current folder:
 mcp-migration-check
 ```
 
+## Other options
+
+**`--json`** - prints the same findings as machine-readable JSON instead of the human report, for CI wrappers or editor integrations to consume. Same exit-code contract as the human report.
+
+```
+mcp-migration-check --json path/to/your/server
+```
+
+**`--explain <rule-id>`** - prints one rule's full story (what it checks, why, how sure we are, and its source) straight from the rule metadata, without scanning anything.
+
+```
+$ mcp-migration-check --explain R1
+
+R1 - Hand-rolled reading of the old session header
+
+Severity: This will break
+Confidence: Confirmed
+
+The 2026-07-28 update removes protocol-level sessions and the Mcp-Session-Id
+header from the Streamable HTTP transport (SEP-2567). ...
+
+Source: https://modelcontextprotocol.io/specification/2026-07-28/changelog.md (checked 2026-07-28)
+```
+
+An unknown rule id exits 2 and lists the known ones.
+
 ## A real before/after
 
 `examples/` in this repo has a small shopping-basket MCP server, written two ways.

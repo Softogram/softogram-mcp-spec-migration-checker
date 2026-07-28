@@ -8,13 +8,18 @@ paths - what keeps the E2E snapshot stable across machines and runs.
 
 from __future__ import annotations
 
+import json
 import textwrap
 from collections import defaultdict
 
-from mcp_migration_check.models import SEVERITY_WILL_BREAK, ScanResult
+from mcp_migration_check.models import SEVERITY_WILL_BREAK, Rule, ScanResult
 
 _SEVERITY_LABELS = {
     SEVERITY_WILL_BREAK: "THIS WILL BREAK",
+    "worth-checking": "Worth checking",
+}
+_SEVERITY_PROSE = {
+    SEVERITY_WILL_BREAK: "This will break",
     "worth-checking": "Worth checking",
 }
 _CONFIDENCE_LABELS = {
@@ -94,5 +99,90 @@ def render_report(result: ScanResult, scanned_path_display: str) -> str:
         f"{len(result.manual_checks)} needs manual check, "
         f"{len(result.skipped_files)} files skipped"
     )
+
+    return "\n".join(lines) + "\n"
+
+
+def render_json(result: ScanResult, scanned_path_display: str) -> str:
+    """Render a ScanResult as machine-readable JSON.
+
+    Same content and determinism guarantees as render_report (stable
+    ordering, no absolute paths, no timestamps) - just a different
+    shape, for CI wrappers and editors to consume. See issue #18.
+    """
+    findings = sorted(result.findings, key=lambda f: (f.file, f.line, f.rule_id))
+    findings_json = [
+        {
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "file": f.file,
+            "line": f.line,
+            "matched_text": f.matched_text,
+            "severity": f.severity,
+            "confidence": f.confidence,
+            "explanation": f.explanation,
+            "source_url": f.source_url,
+            "source_checked": f.source_checked,
+        }
+        for f in findings
+    ]
+
+    checks_by_rule: dict[str, list] = defaultdict(list)
+    for check in result.manual_checks:
+        checks_by_rule[check.rule_id].append(check)
+    manual_checks_json = [
+        {
+            "rule_id": rule_id,
+            "title": checks_by_rule[rule_id][0].title,
+            "files": sorted({c.file for c in checks_by_rule[rule_id]}),
+            "manual_check_text": checks_by_rule[rule_id][0].manual_check_text,
+            "source_url": checks_by_rule[rule_id][0].source_url,
+            "source_checked": checks_by_rule[rule_id][0].source_checked,
+        }
+        for rule_id in sorted(checks_by_rule)
+    ]
+
+    skipped_files_json = [
+        {"file": s.file, "reason": s.reason}
+        for s in sorted(result.skipped_files, key=lambda s: s.file)
+    ]
+
+    payload = {
+        "scanned_path": scanned_path_display,
+        "files_scanned": result.files_scanned,
+        "findings": findings_json,
+        "manual_checks": manual_checks_json,
+        "skipped_files": skipped_files_json,
+        "summary": {
+            "will_break": result.will_break_count,
+            "worth_checking": result.worth_checking_count,
+            "needs_manual_check": len(result.manual_checks),
+            "files_skipped": len(result.skipped_files),
+        },
+    }
+    return json.dumps(payload, indent=2) + "\n"
+
+
+def render_explain(rule: Rule) -> str:
+    """Render one rule's full story, straight from its metadata. See issue #19."""
+    severity_label = _SEVERITY_PROSE[rule.severity]
+    confidence_label = _CONFIDENCE_LABELS[rule.confidence]
+
+    lines = [
+        f"{rule.id} - {rule.title}",
+        "",
+        f"Severity: {severity_label}",
+        f"Confidence: {confidence_label}",
+        "",
+    ]
+    lines.extend(_wrap(rule.explanation))
+    lines.append("")
+
+    if rule.manual_check_text:
+        lines.append("If the tool can't tell whether this applies to you, it says:")
+        lines.extend(_wrap(rule.manual_check_text))
+        lines.append("")
+
+    lines.append(f"Source: {rule.source_url} (checked {rule.source_checked})")
 
     return "\n".join(lines) + "\n"

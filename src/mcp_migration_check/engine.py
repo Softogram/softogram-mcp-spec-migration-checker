@@ -33,7 +33,12 @@ def _relative_posix(path: Path, root: Path) -> str:
     return rel.as_posix()
 
 
-def _load_ruleset_and_registry() -> tuple[dict[str, Rule], dict[str, object]]:
+def load_ruleset_and_registry() -> tuple[dict[str, Rule], dict[str, object]]:
+    """Load rules.toml and cross-check it against the matcher registry.
+
+    Public so the CLI's --explain option can look up a rule's metadata
+    without running a scan.
+    """
     from mcp_migration_check.rules import REGISTRY
 
     rules = load_rules(_RULES_TOML)
@@ -43,7 +48,7 @@ def _load_ruleset_and_registry() -> tuple[dict[str, Rule], dict[str, object]]:
 
 def run_scan(root: Path) -> ScanResult:
     """Scan every Python file under root and return the assembled ScanResult."""
-    rules, registry = _load_ruleset_and_registry()
+    rules, registry = load_ruleset_and_registry()
 
     py_files = sorted(discover_python_files(root))
     findings: list[Finding] = []
