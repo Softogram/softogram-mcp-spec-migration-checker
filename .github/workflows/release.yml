@@ -50,7 +50,7 @@ jobs:
 
       - name: Rename artifact to its platform-specific name (Windows)
         if: runner.os == 'Windows'
-        run: Rename-Item dist/mcp-migration-check.exe dist/${{ matrix.asset_name }}
+        run: Rename-Item dist/mcp-migration-check.exe ${{ matrix.asset_name }}
 
       - name: Smoke-test the built executable against the examples
         shell: bash
