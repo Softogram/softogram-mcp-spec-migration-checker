@@ -42,7 +42,28 @@ jobs:
         run: pytest
 
       - name: Build the standalone executable
+        if: runner.os != 'Linux'
         run: pyinstaller mcp-migration-check.spec --noconfirm
+
+      - name: Build the standalone executable (Linux, in an older-glibc container)
+        if: runner.os == 'Linux'
+        run: |
+          # ubuntu-latest ships a newer glibc than most currently-deployed
+          # Linux servers (Ubuntu 22.04 LTS, Debian 12, etc.) - a binary
+          # built directly on the runner requires glibc 2.38 and fails with
+          # "version `GLIBC_2.38' not found" on those systems. Building
+          # inside python:3.11-slim-bookworm (Debian 12) instead lowers the
+          # requirement to glibc 2.35, which those systems do have, while
+          # staying forward-compatible with newer distros too. Verified by
+          # hand against debian:bookworm-slim, ubuntu:22.04, and
+          # ubuntu:24.04 - see docs/LEARNINGS.md's 2026-07-29 entry.
+          docker run --rm -v "$PWD":/repo -w /repo python:3.11-slim-bookworm bash -c "
+            apt-get -qq update &&
+            apt-get -qq install -y binutils &&
+            pip install -q '.[build]' &&
+            pyinstaller mcp-migration-check.spec --noconfirm
+          "
+          sudo chown -R "$(id -u):$(id -g)" dist/
 
       - name: Rename artifact to its platform-specific name (Unix)
         if: runner.os != 'Windows'
