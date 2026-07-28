@@ -11,7 +11,20 @@ A big update to that rulebook lands on **2026-07-28**.
 The update removes some patterns that older MCP servers rely on, so code written the old way can quietly stop working.
 This tool reads your server's code and reports exactly what needs to change, in plain language, before that happens.
 
-## Five-minute path
+## Download and run - no Python required
+
+Grab the file for your platform from the [latest release](https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases/latest), make it executable, and run it:
+
+```
+chmod +x mcp-migration-check-*
+./mcp-migration-check-* path/to/your/server
+```
+
+This is a single, standalone file (built by [PyInstaller](https://pyinstaller.org/)) - no Python install, no `pip install`, no cloning this repo. Leave off the path and it checks the current folder.
+
+macOS and Windows may show a first-run warning since the binary isn't code-signed (normal for a small open-source tool) - right-click and choose "Open" on macOS, or click "More info -> Run anyway" on Windows, to bypass it once.
+
+## Or install with pip, if you already have Python
 
 Requires Python 3.11 or newer.
 
@@ -132,6 +145,18 @@ pip install ".[dev]"
 pytest                       # unit and fixture tests
 ruff check .                 # lint
 python scripts/e2e_check.py  # release gate: runs the CLI against examples/, diffs against snapshots
+```
+
+## Building the standalone executable
+
+The downloadable, no-Python-required file above is built with [PyInstaller](https://pyinstaller.org/) from `mcp-migration-check.spec`.
+`.github/workflows/release.yml` builds one for each of macOS, Linux, and Windows and attaches them to the GitHub Release whenever a `v*` tag is pushed.
+To build one yourself:
+
+```
+pip install ".[build]"
+pyinstaller mcp-migration-check.spec
+./dist/mcp-migration-check path/to/your/server
 ```
 
 See `tests/README.md` for the per-rule fixture convention.

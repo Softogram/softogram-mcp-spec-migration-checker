@@ -109,3 +109,14 @@ See this folder's `CLAUDE.md` section 5 for why this exists.
   `ast.parse()` had validated every fixture's syntax from the start, but the first time a rewritten "after" example was actually *imported* against the real SDK, `mcp.run(transport="streamable-http")` at module level blocked the whole process - the SDK really does start a server synchronously on that call.
   Guarding it behind `if __name__ == "__main__":` fixed it, and is also just correct practice for any importable module.
   How to explain it to someone else: "parsing proves the grammar is right; importing proves the module doesn't have side effects it shouldn't; only running it proves the logic is right - each layer catches a different kind of wrong, so skipping straight to the cheapest one leaves the other two unchecked."
+
+## 2026-07-28 (still later) - Distributing a Python CLI as a real standalone binary
+
+- **Concept: "downloadable and runs directly" is a distribution decision, not a packaging afterthought.**
+  A `pip install`-based CLI still asks the user to have Python, a package manager, and (for this project) a git clone.
+  PyInstaller collapses all of that into one native file per OS - the whole Python interpreter and every dependency get bundled into a single executable, so a user with zero Python on their machine can still run it.
+  Verified for real, not assumed: built the executable locally, then ran it with `env -i PATH=/usr/bin:/bin` (a stripped environment with no Python, no venv, nothing this project installed) against both examples and confirmed identical output and exit codes to the `pip install` path.
+- **Concept: a bundled data file needs its destination path to match where the code already looks for it.**
+  PyInstaller's dependency analysis only follows Python imports automatically; `rules.toml` isn't imported, so it has to be listed explicitly in the spec's `datas`.
+  The one thing that mattered: the destination path inside the bundle (`mcp_migration_check/rules/rules.toml`) had to match the *relative* structure the engine's existing `Path(__file__).parent`-based lookup expects - get that path wrong and the rule set silently fails to load only in the packaged build, never in a normal dev environment, which is exactly the kind of gap that "works on my machine" doesn't catch.
+  How to explain it to someone else: "when you bundle a non-code file, ask where your own code goes looking for it - not just whether the bundler can find it to include."

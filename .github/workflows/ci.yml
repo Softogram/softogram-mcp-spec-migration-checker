@@ -25,3 +25,10 @@ jobs:
 
       - name: End-to-end release gate
         run: python scripts/e2e_check.py
+
+      - name: Standalone-executable build smoke test
+        run: |
+          pip install ".[build]"
+          pyinstaller mcp-migration-check.spec --noconfirm
+          ./dist/mcp-migration-check examples/before; test $? -eq 1
+          ./dist/mcp-migration-check examples/after; test $? -eq 0

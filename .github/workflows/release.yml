@@ -1,0 +1,75 @@
+name: Release
+
+# Builds a standalone, single-file executable per OS and attaches each one
+# to the GitHub Release for the pushed tag - so a user can download one
+# file for their platform and run it directly, with no Python install, no
+# `pip install`, and no cloning this repo. See mcp-migration-check.spec.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: mcp-migration-check-linux-x86_64
+          - os: macos-latest
+            asset_name: mcp-migration-check-macos-arm64
+          - os: windows-latest
+            asset_name: mcp-migration-check-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package, test tools, and PyInstaller
+        run: pip install ".[dev,build]"
+
+      - name: Run the test suite before building a release artifact
+        run: pytest
+
+      - name: Build the standalone executable
+        run: pyinstaller mcp-migration-check.spec --noconfirm
+
+      - name: Rename artifact to its platform-specific name (Unix)
+        if: runner.os != 'Windows'
+        run: mv dist/mcp-migration-check dist/${{ matrix.asset_name }}
+
+      - name: Rename artifact to its platform-specific name (Windows)
+        if: runner.os == 'Windows'
+        run: Rename-Item dist/mcp-migration-check.exe dist/${{ matrix.asset_name }}
+
+      - name: Smoke-test the built executable against the examples
+        shell: bash
+        run: |
+          chmod +x "dist/${{ matrix.asset_name }}" || true
+          "./dist/${{ matrix.asset_name }}" examples/before; test $? -eq 1
+          "./dist/${{ matrix.asset_name }}" examples/after; test $? -eq 0
+
+      - name: Upload artifact to the workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish the GitHub Release with all platform binaries attached
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
