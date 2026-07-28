@@ -1,16 +1,19 @@
 """The same shopping-basket MCP server, migrated to the 2026-07-28 spec.
 
-Every request now carries an explicit basket handle instead of relying on
-a session the server remembers. See examples/README.md for exactly what
-changed and why.
+The hand-rolled ASGI transport is gone entirely - this now uses the
+official MCP Python SDK's own Streamable HTTP transport, which handles
+the two new required headers internally. Every request carries an
+explicit basket handle instead of an implicit session id. See
+examples/README.md for exactly what changed and why. Validated
+importable against a real installed `mcp` package (mcp>=2.0).
 """
 
-from mcp.server import Server
+from mcp.server.mcpserver import MCPServer
 from mcp.types import METHOD_NOT_FOUND
 
 BASKETS = {}
 
-mcp = Server("basket-server")
+mcp = MCPServer("basket-server")
 
 
 @mcp.tool()
@@ -32,4 +35,5 @@ def handle_error(err) -> None:
         raise ValueError("Unknown basket method")
 
 
-mcp.run(transport="stdio")
+if __name__ == "__main__":
+    mcp.run(transport="streamable-http")

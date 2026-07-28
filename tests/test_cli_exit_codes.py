@@ -24,7 +24,7 @@ def test_exit_zero_on_clean_scan():
 
 
 def test_exit_one_when_a_will_break_finding_exists():
-    result = _run_cli(str(FIXTURES_DIR / "r1" / "match_session_attribute.py"))
+    result = _run_cli(str(FIXTURES_DIR / "r1" / "match_session_header.py"))
     assert result.returncode == 1
     assert "THIS WILL BREAK" in result.stdout
 

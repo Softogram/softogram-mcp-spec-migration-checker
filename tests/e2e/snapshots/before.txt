@@ -1,51 +1,58 @@
 mcp-migration-check: scanned 2 Python files under examples/before
 
 server.py
-  line 20  [THIS WILL BREAK]  (Confirmed)  R1 - Old-style session usage
-      > session_id = ctx.request_context.headers.get("Mcp-Session-Id")
-      Sessions are removed in the 2026-07-28 spec update. Every request must carry
-      what it needs on its own; code that reads or stores a session ID will stop
-      working. Replace it with an explicit handle the client passes back on later
-      requests.
+  line 19  [THIS WILL BREAK]  (Confirmed)  R3 - Hand-rolled transport missing Mcp-Method / Mcp-Name
+      > async def app(scope, receive, send):
+      The 2026-07-28 update requires the Mcp-Method and Mcp-Name headers on every
+      Streamable HTTP POST request. This only applies to hand-rolled MCP-over-HTTP
+      transport code - servers using the official SDK's built-in Streamable HTTP
+      transport get this handled for them. If you wrote your own transport wiring
+      instead of using the SDK's, add both headers.
       Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
 
-  line 21  [THIS WILL BREAK]  (Confirmed)  R2 - Session-keyed server memory
+  line 24  [THIS WILL BREAK]  (Confirmed)  R1 - Hand-rolled reading of the old session header
+      > session_id = headers.get("mcp-session-id")
+      Sessions are removed in the 2026-07-28 spec update. Reading the Mcp-Session-
+      Id header directly by name means your code bypasses the SDK's own transport
+      and session handling entirely, and is relying on the removed session model
+      by hand. Replace it with an explicit handle the client passes back on later
+      requests.
+      Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-28)
+
+  line 31  [THIS WILL BREAK]  (Confirmed)  R2 - Session-keyed server memory
       > BASKETS.setdefault(session_id, []).append(item)
       Server-side memory keyed to a session must become an explicit handle that
       the client passes back on later requests, instead of being hidden inside a
       session the server remembers on its own.
       Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
 
-  line 28  [THIS WILL BREAK]  (Confirmed)  R2 - Session-keyed server memory
-      > return BASKETS.get(ctx.session_id, [])
+  line 32  [THIS WILL BREAK]  (Confirmed)  R2 - Session-keyed server memory
+      > result = {"basket": BASKETS[session_id]}
       Server-side memory keyed to a session must become an explicit handle that
       the client passes back on later requests, instead of being hidden inside a
       session the server remembers on its own.
       Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
 
-  line 33  [Worth checking]  (Reported)  R5 - Hand-written MCP error number
-      > if err.code == -32601:
+  line 34  [THIS WILL BREAK]  (Confirmed)  R2 - Session-keyed server memory
+      > result = {"basket": BASKETS.get(session_id, [])}
+      Server-side memory keyed to a session must become an explicit handle that
+      the client passes back on later requests, instead of being hidden inside a
+      session the server remembers on its own.
+      Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
+
+  line 36  [Worth checking]  (Reported)  R5 - Hand-written MCP error number
+      > error_code = -32601
       Trusted sources report MCP error numbers may change in this update, but the
       official changelog does not confirm which ones. Verify this number against
       the final spec rather than relying on the hand-written value.
       Source: https://chatforest.com/builders-log/mcp-spec-2026-07-28-release-candidate-stateless-breaking-changes-builder-guide/ (checked 2026-07-14)
 
 tools/logging_setup.py
-  line 8  [Worth checking]  (Reported)  R4 - Phased-out capability: Roots / Sampling / Logging
-      > mcp.set_logging_level("debug")
+  line 18  [Worth checking]  (Reported)  R4 - Phased-out capability: Roots / Sampling / Logging
+      > await ctx.session.send_log_message("debug", "Basket server debug logging enabled.")
       Trusted sources close to MCP report Roots, Sampling, and Logging are being
       phased out, with a year's grace period before anything stops working. This
       will not break on July 28, but plan to move off it.
       Source: https://aaif.io/blog/mcp-is-growing-up/ (checked 2026-07-14)
 
-NEEDS MANUAL CHECK - the tool could not tell whether these rules apply to you
-  R3 - Hand-rolled transport missing Mcp-Method / Mcp-Name
-      Your server's transport (web vs. local-only, or which transport mechanism)
-      is decided at runtime or through an import the tool can't resolve
-      statically, so it cannot tell whether this rule applies. If your server is
-      reachable over the web using hand-rolled (non-SDK) transport code, both Mcp-
-      Method and Mcp-Name are required on every request - please check by hand.
-      Files: server.py
-      Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
-
-Summary: 3 will break, 2 worth checking, 1 needs manual check, 0 files skipped
+Summary: 5 will break, 2 worth checking, 0 needs manual check, 0 files skipped

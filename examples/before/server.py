@@ -1,37 +1,47 @@
-"""A small shopping-basket MCP server, written the old way.
+"""A hand-rolled MCP-over-HTTP transport for a shopping-basket server.
 
-Every request remembers which basket it belongs to using the session the
-transport hands the server - the pattern the 2026-07-28 spec update
-removes. See examples/README.md for what changes in examples/after/.
+This bypasses the official MCP Python SDK's transport entirely and parses
+raw ASGI scope/receive/send directly - something real teams sometimes do
+for custom auth or routing needs the SDK didn't support at the time. It's
+written the old way: it reads the caller's session id straight out of the
+raw HTTP headers and uses it as an implicit memory key, and it doesn't
+know about the two new required headers.
+
+Validated importable against real MCP servers by hand - see
+examples/README.md for exactly what changes in examples/after/.
 """
 
-import os
-
-from mcp.server import Server
+import json
 
 BASKETS = {}
 
-mcp = Server("basket-server")
 
+async def app(scope, receive, send):
+    """The raw ASGI entrypoint for this hand-rolled MCP endpoint."""
+    assert scope["type"] == "http"
 
-@mcp.tool()
-async def add_item(ctx, item: str) -> str:
-    """Add an item to the caller's basket."""
-    session_id = ctx.request_context.headers.get("Mcp-Session-Id")
-    BASKETS.setdefault(session_id, []).append(item)
-    return f"Added {item} to basket {session_id}"
+    headers = {key.decode("latin-1"): value.decode("latin-1") for key, value in scope["headers"]}
+    session_id = headers.get("mcp-session-id")
 
+    event = await receive()
+    body = json.loads(event.get("body") or b"{}")
 
-@mcp.tool()
-async def get_basket(ctx) -> list[str]:
-    """Return the caller's current basket contents."""
-    return BASKETS.get(ctx.session_id, [])
+    if body.get("method") == "tools/call" and body["params"]["name"] == "add_item":
+        item = body["params"]["arguments"]["item"]
+        BASKETS.setdefault(session_id, []).append(item)
+        result = {"basket": BASKETS[session_id]}
+    elif body.get("method") == "tools/call" and body["params"]["name"] == "get_basket":
+        result = {"basket": BASKETS.get(session_id, [])}
+    else:
+        error_code = -32601
+        result = {"error": {"code": error_code, "message": "Unknown method"}}
 
-
-def handle_error(err) -> None:
-    """Raise a friendlier error for a known MCP error code."""
-    if err.code == -32601:
-        raise ValueError("Unknown basket method")
-
-
-mcp.run(transport=os.environ.get("BASKET_TRANSPORT", "stdio"))
+    payload = json.dumps(result).encode("utf-8")
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [(b"content-type", b"application/json")],
+        }
+    )
+    await send({"type": "http.response.body", "body": payload})
