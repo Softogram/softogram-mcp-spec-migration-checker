@@ -1,10 +1,20 @@
-"""R4 - use of Roots / Sampling / Logging, reported as being phased out.
+"""R4 - use of Roots / Sampling / Logging, deprecated as of 2026-07-28.
 
 Matches SDK-specific surfaces only: the MCP SDK's own roots/sampling/logging
 calls and capability declarations. Must not match plain Python stdlib
 `logging` module usage (import logging, logger.info(...)) - that is the
 single most important must-not fixture for this rule. See docs/PRD.md
-sections 1, 4.1 and the AAIF source cited in rules.toml.
+sections 1, 4.1 and rules.toml (now Confirmed via the official 2026-07-28
+changelog, SEP-2577).
+
+`set_logging_level` was removed from this rule's match set on 2026-07-28:
+checking against the real installed SDK showed it is never a method on
+`ServerSession` (the client-facing session app code consumes via
+`ctx.session`) - it only exists as the low-level `Server`'s decorator for
+*registering the incoming request handler*, a server-implementation
+concern that belongs to R8 (the removed logging/setLevel RPC), not to
+this rule's "consuming a deprecated capability" theme. See
+docs/LEARNINGS.md's 2026-07-28 entry.
 """
 
 from __future__ import annotations
@@ -14,7 +24,6 @@ import ast
 _PHASED_OUT_CALL_NAMES = {
     "list_roots",
     "create_message",
-    "set_logging_level",
     "send_log_message",
 }
 _PHASED_OUT_CAPABILITY_NAMES = {

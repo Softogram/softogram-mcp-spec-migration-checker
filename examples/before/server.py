@@ -31,10 +31,13 @@ async def app(scope, receive, send):
         BASKETS.setdefault(session_id, []).append(item)
         result = {"basket": BASKETS[session_id]}
     elif body.get("method") == "tools/call" and body["params"]["name"] == "get_basket":
-        result = {"basket": BASKETS.get(session_id, [])}
+        if session_id not in BASKETS:
+            error_code = -32002
+            result = {"error": {"code": error_code, "message": "Basket not found"}}
+        else:
+            result = {"basket": BASKETS[session_id]}
     else:
-        error_code = -32601
-        result = {"error": {"code": error_code, "message": "Unknown method"}}
+        result = {"error": {"code": -32601, "message": "Unknown method"}}
 
     payload = json.dumps(result).encode("utf-8")
     await send(

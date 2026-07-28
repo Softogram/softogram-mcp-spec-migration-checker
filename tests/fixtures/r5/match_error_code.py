@@ -1,3 +1,3 @@
 def handle(err):
-    if err.code == -32601:
-        raise ValueError("bad method")
+    if err.code == -32002:
+        raise ValueError("basket not found")

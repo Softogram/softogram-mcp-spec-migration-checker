@@ -5,46 +5,73 @@
 # editing this file plus a matcher module and a registry line - never the
 # engine or reporter.
 #
-# Re-verify every row here against the official spec once it publishes on
-# 2026-07-28 - see docs/PRD.md section 11, item 1.
+# Re-verified against the final (non-draft) official changelog on
+# 2026-07-28: https://modelcontextprotocol.io/specification/2026-07-28/changelog.md
+# - see docs/PRD.md section 11, item 1, and docs/LEARNINGS.md's later
+# 2026-07-28 entry for what changed between the draft-era assumptions and
+# the final text.
 
 [R1]
 title = "Hand-rolled reading of the old session header"
 severity = "will-break"
 confidence = "confirmed"
-explanation = "Sessions are removed in the 2026-07-28 spec update. Reading the Mcp-Session-Id header directly by name means your code bypasses the SDK's own transport and session handling entirely, and is relying on the removed session model by hand. Replace it with an explicit handle the client passes back on later requests."
-source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
+explanation = "The 2026-07-28 update removes protocol-level sessions and the Mcp-Session-Id header from the Streamable HTTP transport (SEP-2567). Reading the header directly by name means your code bypasses the SDK's own transport and session handling entirely, and is relying on the removed session model by hand. Replace it with an explicit, server-minted handle passed as an ordinary tool argument."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
 source_checked = "2026-07-28"
 
 [R2]
 title = "Session-keyed server memory"
 severity = "will-break"
 confidence = "confirmed"
-explanation = "Server-side memory keyed to a session must become an explicit handle that the client passes back on later requests, instead of being hidden inside a session the server remembers on its own."
-source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
-source_checked = "2026-07-14"
+explanation = "Servers that need cross-call state must use an explicit, server-minted handle passed back as an ordinary tool argument (SEP-2567), instead of memory keyed to a session the server remembers on its own."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
 
 [R3]
 title = "Hand-rolled transport missing Mcp-Method / Mcp-Name"
 severity = "will-break"
 confidence = "confirmed"
-explanation = "The 2026-07-28 update requires the Mcp-Method and Mcp-Name headers on every Streamable HTTP POST request. This only applies to hand-rolled MCP-over-HTTP transport code - servers using the official SDK's built-in Streamable HTTP transport get this handled for them. If you wrote your own transport wiring instead of using the SDK's, add both headers."
-source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
-source_checked = "2026-07-14"
+explanation = "The 2026-07-28 update requires the Mcp-Method and Mcp-Name headers on every Streamable HTTP POST request (SEP-2243). This only applies to hand-rolled MCP-over-HTTP transport code - servers using the official SDK's built-in Streamable HTTP transport get this handled for them. If you wrote your own transport wiring instead of using the SDK's, add both headers."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
 manual_check_text = "Your server's transport (web vs. local-only, or which transport mechanism) is decided at runtime or through an import the tool can't resolve statically, so it cannot tell whether this rule applies. If your server is reachable over the web using hand-rolled (non-SDK) transport code, both Mcp-Method and Mcp-Name are required on every request - please check by hand."
 
 [R4]
 title = "Phased-out capability: Roots / Sampling / Logging"
 severity = "worth-checking"
-confidence = "reported"
-explanation = "Trusted sources close to MCP report Roots, Sampling, and Logging are being phased out, with a year's grace period before anything stops working. This will not break on July 28, but plan to move off it."
-source_url = "https://aaif.io/blog/mcp-is-growing-up/"
-source_checked = "2026-07-14"
+confidence = "confirmed"
+explanation = "The official changelog now lists Roots, Sampling, and Logging as deprecated (SEP-2577), with a minimum twelve-month grace period before removal - suggested migrations are tool parameters/resource URIs/server config instead of Roots, direct LLM provider API calls instead of Sampling, and stderr or OpenTelemetry instead of Logging. This will not break on July 28, but plan to move off it."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
 
 [R5]
-title = "Hand-written MCP error number"
-severity = "worth-checking"
-confidence = "reported"
-explanation = "Trusted sources report MCP error numbers may change in this update, but the official changelog does not confirm which ones. Verify this number against the final spec rather than relying on the hand-written value."
-source_url = "https://chatforest.com/builders-log/mcp-spec-2026-07-28-release-candidate-stateless-breaking-changes-builder-guide/"
-source_checked = "2026-07-14"
+title = "Hand-written use of a renumbered MCP error code"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "The 2026-07-28 update's error-code allocation policy renumbers four specific JSON-RPC error codes: -32001 (HeaderMismatch) to -32020, -32002 (resource not found) to -32602, -32003 (MissingRequiredClientCapability) to -32021, and -32004 (UnsupportedProtocolVersion) to -32022. Code that hardcodes one of the four old numbers will silently stop matching once the other side upgrades - use the SDK's named error constants instead. Other codes in -32000..-32019 are explicitly grandfathered as implementation-defined and safe to keep."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
+
+[R6]
+title = "SSE resumability opt-in (event_store)"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "The 2026-07-28 update removes SSE stream resumability and message redelivery (the Last-Event-ID header and SSE event IDs) from the Streamable HTTP transport entirely (SEP-2575). A broken response stream now loses the in-flight request; clients must re-issue it as a new request with a new request ID. Passing an event_store to opt into resumability configures a mechanism the new spec no longer supports - remove it."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
+
+[R7]
+title = "Old-style resources/subscribe or resources/unsubscribe handler"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "The 2026-07-28 update replaces the HTTP GET endpoint and resources/subscribe / resources/unsubscribe with a single subscriptions/listen long-lived stream (SEP-2575). A server still registering a handler for the old subscribe or unsubscribe request is implementing a request type the new spec no longer has - migrate to subscriptions/listen."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
+
+[R8]
+title = "Old-style logging/setLevel request handler"
+severity = "will-break"
+confidence = "confirmed"
+explanation = "The 2026-07-28 update removes the logging/setLevel request entirely (SEP-2575); log level is now set per-request via a _meta key instead. A server still registering a handler for this request is implementing a request type the new spec no longer has. This is distinct from R4 (consuming the deprecated Logging capability, a 12-month grace period) - this is the removed request handler itself, with no grace period."
+source_url = "https://modelcontextprotocol.io/specification/2026-07-28/changelog.md"
+source_checked = "2026-07-28"
