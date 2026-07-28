@@ -1,9 +1,13 @@
-"""Proves the R1/R2 boundary: one ambiguous line fires exactly one rule.
+"""Proves R1 and R2 never double-fire on the same line.
 
-See docs/low-level-design/001-rule-definition-format.md and the R1/R2
-boundary note in each matcher's module docstring. A session-id attribute
-access used directly as a memory container's key belongs to R2 only - R1
-must skip it.
+R1 was narrowed on 2026-07-28 to only match hand-rolled reads of the raw
+"Mcp-Session-Id" header by string literal (see r1_session_usage.py's
+module docstring for why the earlier attribute-based check was dropped -
+ctx.session_id turned out to be a legitimate, still-supported SDK
+property). Since R1 no longer inspects attribute nodes at all, its
+pattern space (string-literal header reads) and R2's (subscript/method
+keys named like a session) are now disjoint by construction - this test
+is the regression guard for that.
 """
 
 from tests.helpers import FIXTURES_DIR, run_matcher
@@ -11,7 +15,7 @@ from tests.helpers import FIXTURES_DIR, run_matcher
 FIXTURE = FIXTURES_DIR / "boundary" / "r1_r2_ambiguous.py"
 
 
-def test_r1_skips_the_ambiguous_line():
+def test_r1_does_not_fire_on_the_ambiguous_line():
     assert run_matcher("R1", FIXTURE) == []
 
 

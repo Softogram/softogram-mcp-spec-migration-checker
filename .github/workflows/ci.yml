@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# Least-privilege default for the GITHUB_TOKEN: this workflow only reads
+# the repo to test and build - it never needs to write anything.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,3 +30,22 @@ jobs:
 
       - name: End-to-end release gate
         run: python scripts/e2e_check.py
+
+      - name: Standalone-executable build smoke test
+        run: |
+          pip install ".[build]"
+          pyinstaller mcp-migration-check.spec --noconfirm
+
+          rc=0
+          ./dist/mcp-migration-check examples/before || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "expected exit code 1 for examples/before, got $rc"
+            exit 1
+          fi
+
+          rc=0
+          ./dist/mcp-migration-check examples/after || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "expected exit code 0 for examples/after, got $rc"
+            exit 1
+          fi

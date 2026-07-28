@@ -11,7 +11,20 @@ A big update to that rulebook lands on **2026-07-28**.
 The update removes some patterns that older MCP servers rely on, so code written the old way can quietly stop working.
 This tool reads your server's code and reports exactly what needs to change, in plain language, before that happens.
 
-## Five-minute path
+## Download and run - no Python required
+
+Grab the file for your platform from the [latest release](https://github.com/Softogram/softogram-mcp-spec-migration-checker/releases/latest), make it executable, and run it:
+
+```
+chmod +x mcp-migration-check-*
+./mcp-migration-check-* path/to/your/server
+```
+
+This is a single, standalone file (built by [PyInstaller](https://pyinstaller.org/)) - no Python install, no `pip install`, no cloning this repo. Leave off the path and it checks the current folder.
+
+macOS and Windows may show a first-run warning since the binary isn't code-signed (normal for a small open-source tool) - right-click and choose "Open" on macOS, or click "More info -> Run anyway" on Windows, to bypass it once.
+
+## Or install with pip, if you already have Python
 
 Requires Python 3.11 or newer.
 
@@ -31,7 +44,7 @@ mcp-migration-check
 ## A real before/after
 
 `examples/` in this repo has a small shopping-basket MCP server, written two ways.
-`examples/before/` is written the old way.
+`examples/before/` hand-rolls its own MCP-over-HTTP transport, bypassing the official SDK entirely - and both examples are validated against the real, installed `mcp` package (not just hand-written to look plausible; see `examples/README.md`).
 Running the tool on it looks like this:
 
 ```
@@ -40,17 +53,22 @@ $ mcp-migration-check examples/before
 mcp-migration-check: scanned 2 Python files under examples/before
 
 server.py
-  line 20  [THIS WILL BREAK]  (Confirmed)  R1 - Old-style session usage
-      > session_id = ctx.request_context.headers.get("Mcp-Session-Id")
-      Sessions are removed in the 2026-07-28 spec update. Every request must carry
-      what it needs on its own; code that reads or stores a session ID will stop
-      working. Replace it with an explicit handle the client passes back on later
-      requests.
+  line 19  [THIS WILL BREAK]  (Confirmed)  R3 - Hand-rolled transport missing Mcp-Method / Mcp-Name
+      > async def app(scope, receive, send):
+      The 2026-07-28 update requires the Mcp-Method and Mcp-Name headers on every
+      Streamable HTTP POST request. This only applies to hand-rolled MCP-over-HTTP
+      transport code - servers using the official SDK's built-in Streamable HTTP
+      transport get this handled for them. If you wrote your own transport wiring
+      instead of using the SDK's, add both headers.
       Source: https://modelcontextprotocol.io/specification/draft/changelog (checked 2026-07-14)
+
+  line 24  [THIS WILL BREAK]  (Confirmed)  R1 - Hand-rolled reading of the old session header
+      > session_id = headers.get("mcp-session-id")
+      ...
 
   ...
 
-Summary: 3 will break, 2 worth checking, 1 needs manual check, 0 files skipped
+Summary: 5 will break, 2 worth checking, 0 needs manual check, 0 files skipped
 ```
 
 `examples/after/` is the same server, migrated.
@@ -66,7 +84,7 @@ No migration findings found.
 Summary: 0 will break, 0 worth checking, 0 needs manual check, 0 files skipped
 ```
 
-See `examples/README.md` for exactly what changed between the two, and why.
+See `examples/README.md` for exactly what changed between the two, and why - including a false positive the real-SDK check itself caught and fixed.
 
 ## How sure is the tool about each finding?
 
@@ -81,14 +99,15 @@ Every finding in the report is labeled with one of these two confidence tiers, s
 | **Reported** | Described by trusted secondary sources, not yet on the official page | "Worth checking" |
 
 A separate, fourth thing a finding can say is **"we couldn't tell if this applies to you"** (`NEEDS-MANUAL-CHECK`).
-This only happens for R3 below, when your server's transport (web-reachable vs. local-only) is decided at runtime - something reading the code alone can never resolve.
+This happens for R3 when your server's transport (web-reachable vs. local-only) is decided at runtime - something reading the code alone can never resolve.
 It's not a severity and it never affects the exit code.
+See `tests/fixtures/r3/cannot_tell_runtime_transport.py` for a worked example.
 
 ## The five rules
 
 | ID | What it checks for | Severity | Confidence | Source | Last checked |
 |---|---|---|---|---|---|
-| R1 | Old-style session usage - reading or storing a session ID | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-14 |
+| R1 | Hand-rolled reading of the raw `Mcp-Session-Id` header by name (bypassing the SDK's own session handling) | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-28 |
 | R2 | Server memory keyed to a session instead of an explicit handle | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-14 |
 | R3 | Hand-rolled HTTP transport missing the two new required headers, `Mcp-Method` and `Mcp-Name` | This will break | Confirmed | [MCP changelog](https://modelcontextprotocol.io/specification/draft/changelog) | 2026-07-14 |
 | R4 | Use of Roots, Sampling, or Logging (reported as being phased out) | Worth checking | Reported | [AAIF blog](https://aaif.io/blog/mcp-is-growing-up/) | 2026-07-14 |
@@ -98,6 +117,8 @@ It's not a severity and it never affects the exit code.
 If your server uses the official MCP Python SDK's built-in Streamable HTTP transport, the SDK handles these headers for you automatically - there is nothing in your own code for this tool to flag, and R3 stays silent.
 R3 only fires "This will break" on servers that hand-roll their own HTTP transport code instead of using the SDK's.
 See `docs/low-level-design/003-r3-transport-detection.md` for the full reasoning.
+
+**A note on R1:** reading `ctx.session_id` through the SDK's own `Context` object is a legitimate, still-supported convenience property in the real MCP Python SDK (confirmed by installing it directly) - it exposes the transport's connection id, not the removed protocol-level session handshake, so this tool does not flag it. R1 only fires on code that reads the raw `Mcp-Session-Id` header by its literal name, which only happens in code that bypasses the SDK's session handling entirely. See `docs/LEARNINGS.md`'s 2026-07-28 entry for how this was caught.
 
 **Known unknowns - not checked in this version:** independent trackers mention MCP error numbers may change, but no source confirms which ones, so this tool never guesses a specific number.
 It also does not check for the new task-handling, visual-interface, or stricter login/security features in the same update, since those are new additions rather than things that break existing code.
@@ -124,6 +145,18 @@ pip install ".[dev]"
 pytest                       # unit and fixture tests
 ruff check .                 # lint
 python scripts/e2e_check.py  # release gate: runs the CLI against examples/, diffs against snapshots
+```
+
+## Building the standalone executable
+
+The downloadable, no-Python-required file above is built with [PyInstaller](https://pyinstaller.org/) from `mcp-migration-check.spec`.
+`.github/workflows/release.yml` builds one for each of macOS, Linux, and Windows and attaches them to the GitHub Release whenever a `v*` tag is pushed.
+To build one yourself:
+
+```
+pip install ".[build]"
+pyinstaller mcp-migration-check.spec
+./dist/mcp-migration-check path/to/your/server
 ```
 
 See `tests/README.md` for the per-rule fixture convention.

@@ -72,7 +72,7 @@ It also makes the confidence-tier honesty auditable: every claim the tool prints
 
 | ID | What it looks for | Severity | Confidence |
 |---|---|---|---|
-| R1 | Old-style session usage (reading/storing a session ID) | This will break | Confirmed |
+| R1 | Hand-rolled reading of the raw `Mcp-Session-Id` header by name (narrowed 2026-07-28 after checking against the real SDK - see `docs/LEARNINGS.md`, 2026-07-28 entry) | This will break | Confirmed |
 | R2 | Server memory keyed to a session instead of an explicit visible handle | This will break | Confirmed |
 | R3 | Web-exposed server code missing the two new required headers, `Mcp-Method` and `Mcp-Name`; skipped when the server is local-only (stdio) | This will break | Confirmed |
 | R4 | Use of Roots / Sampling / Logging (being phased out) | Worth checking | Reported |

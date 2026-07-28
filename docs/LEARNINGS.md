@@ -92,3 +92,31 @@ See this folder's `CLAUDE.md` section 5 for why this exists.
   Adding `force-include` to place `rules.toml` into the wheel produced a real (non-editable) directory inside the venv's `site-packages/mcp_migration_check/`, which then shadowed the editable-install redirect for the *entire* package - `import mcp_migration_check.models` failed with the package resolving to that mostly-empty directory instead of `src/`.
   The fix wasn't debugging the interaction further; it was recognizing hatchling's default wheel packaging already includes non-`.py` files under a declared package directory, so the special-case force-include was solving a problem that didn't exist and only added risk.
   How to explain it to someone else: "before reaching for a packaging escape hatch, check whether the default behavior already does what you were about to force."
+
+## 2026-07-28 (later same day) - Checking fixtures against the real SDK found a false positive
+
+- **Concept: a plausible-looking API is not the same as a real one.**
+  Every fixture and example server up to this point was hand-authored from general knowledge of what the MCP Python SDK "probably" looks like, never verified against an actual installed package.
+  Asked directly whether that verification had happened, the honest answer was no - so `pip install mcp` was run for real, against both `mcp==1.29.0` (the last pre-update release) and `mcp==2.0.0` (published the same day as the spec update, confirming the update actually shipped on schedule).
+  Reading the real source turned up two fabricated things that never worked on any real version: `from mcp.server import Server` combined with a `.tool()` decorator (that decorator only exists on `FastMCP`), and Starlette's `.route()` decorator (removed from the installed Starlette release; real code needs `Route`-list wiring or a raw ASGI callable).
+  How to explain it to someone else: "if a checker's own test fixtures were never run against the real thing, you don't actually know the checker works - you know it agrees with itself."
+- **Concept: a rule can be correct about the spec and still wrong about the code.**
+  `Context.session_id` turned out to be a real, still-supported property in the *new* SDK (`mcp/server/context.py`: "the transport's session id for this connection... `None` on stdio and stateless HTTP") - it's a connection-scoped correlation id, not the removed protocol-level session handshake.
+  R1 was matching any `ctx.session_id`-style attribute read as "This will break," which meant it would have cried wolf on correct, migrated code the moment a real user ran it.
+  The fix: narrow R1 to only the pattern that's genuinely never seen outside hand-rolled, non-SDK transport code - reading the raw `Mcp-Session-Id` header by its literal string name, which no documented API in either SDK version exposes to application code at all.
+  How to explain it to someone else: "the spec being right about what changed doesn't make your matcher right about how to detect it - go read the object your matcher claims to be watching."
+- **Process: importing example code, not just parsing it, finds a different class of bug.**
+  `ast.parse()` had validated every fixture's syntax from the start, but the first time a rewritten "after" example was actually *imported* against the real SDK, `mcp.run(transport="streamable-http")` at module level blocked the whole process - the SDK really does start a server synchronously on that call.
+  Guarding it behind `if __name__ == "__main__":` fixed it, and is also just correct practice for any importable module.
+  How to explain it to someone else: "parsing proves the grammar is right; importing proves the module doesn't have side effects it shouldn't; only running it proves the logic is right - each layer catches a different kind of wrong, so skipping straight to the cheapest one leaves the other two unchecked."
+
+## 2026-07-28 (still later) - Distributing a Python CLI as a real standalone binary
+
+- **Concept: "downloadable and runs directly" is a distribution decision, not a packaging afterthought.**
+  A `pip install`-based CLI still asks the user to have Python, a package manager, and (for this project) a git clone.
+  PyInstaller collapses all of that into one native file per OS - the whole Python interpreter and every dependency get bundled into a single executable, so a user with zero Python on their machine can still run it.
+  Verified for real, not assumed: built the executable locally, then ran it with `env -i PATH=/usr/bin:/bin` (a stripped environment with no Python, no venv, nothing this project installed) against both examples and confirmed identical output and exit codes to the `pip install` path.
+- **Concept: a bundled data file needs its destination path to match where the code already looks for it.**
+  PyInstaller's dependency analysis only follows Python imports automatically; `rules.toml` isn't imported, so it has to be listed explicitly in the spec's `datas`.
+  The one thing that mattered: the destination path inside the bundle (`mcp_migration_check/rules/rules.toml`) had to match the *relative* structure the engine's existing `Path(__file__).parent`-based lookup expects - get that path wrong and the rule set silently fails to load only in the packaged build, never in a normal dev environment, which is exactly the kind of gap that "works on my machine" doesn't catch.
+  How to explain it to someone else: "when you bundle a non-code file, ask where your own code goes looking for it - not just whether the bundler can find it to include."

@@ -9,12 +9,12 @@
 # 2026-07-28 - see docs/PRD.md section 11, item 1.
 
 [R1]
-title = "Old-style session usage"
+title = "Hand-rolled reading of the old session header"
 severity = "will-break"
 confidence = "confirmed"
-explanation = "Sessions are removed in the 2026-07-28 spec update. Every request must carry what it needs on its own; code that reads or stores a session ID will stop working. Replace it with an explicit handle the client passes back on later requests."
+explanation = "Sessions are removed in the 2026-07-28 spec update. Reading the Mcp-Session-Id header directly by name means your code bypasses the SDK's own transport and session handling entirely, and is relying on the removed session model by hand. Replace it with an explicit handle the client passes back on later requests."
 source_url = "https://modelcontextprotocol.io/specification/draft/changelog"
-source_checked = "2026-07-14"
+source_checked = "2026-07-28"
 
 [R2]
 title = "Session-keyed server memory"
