@@ -228,3 +228,7 @@ pyinstaller mcp-migration-check.spec
 ```
 
 See `tests/README.md` for the per-rule fixture convention.
+
+## License
+
+[MIT](LICENSE) - free to use, modify, and redistribute.
